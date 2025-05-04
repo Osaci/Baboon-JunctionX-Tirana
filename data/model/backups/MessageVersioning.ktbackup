@@ -1,0 +1,79 @@
+/**
+ * Represents a message thread with multiple versions
+ */
+data class MessageThread(
+    val threadId: String,  // Unique identifier for the thread
+    val versions: MutableList<MessageVersion> = mutableListOf(),
+    var currentVersionIndex: Int = 0  // Index of the current active version
+) {
+    fun addVersion(userMessage: Message, botResponse: Message? = null): Int {
+        // Always mark user messages as having version history if this isn't the first version
+        val messageWithHistory = if (versions.isNotEmpty()) {
+            userMessage.copy(hasVersionHistory = true)
+        } else {
+            userMessage
+        }
+        
+        val newVersion = MessageVersion(messageWithHistory, botResponse)
+        versions.add(newVersion)
+        currentVersionIndex = versions.size - 1
+        return currentVersionIndex
+    }
+    
+    fun updateCurrentVersion(userMessage: Message? = null, botResponse: Message? = null) {
+        if (versions.isEmpty()) return
+        
+        val currentVersion = versions[currentVersionIndex]
+        
+        userMessage?.let {
+            // Always ensure hasVersionHistory is set if there are multiple versions
+            val messageWithHistory = if (versions.size > 1) {
+                it.copy(hasVersionHistory = true)
+            } else {
+                it
+            }
+            versions[currentVersionIndex] = currentVersion.copy(userMessage = messageWithHistory)
+        }
+        
+        botResponse?.let {
+            // Also ensure bot responses have hasVersionHistory set
+            val responseWithHistory = if (versions.size > 1) {
+                it.copy(hasVersionHistory = true)
+            } else {
+                it
+            }
+            versions[currentVersionIndex] = versions[currentVersionIndex].copy(botResponse = responseWithHistory)
+        }
+    }
+    fun getCurrentVersion(): MessageVersion? {
+        return if (versions.isNotEmpty() && currentVersionIndex >= 0 && currentVersionIndex < versions.size) {
+            versions[currentVersionIndex]
+        } else {
+            null
+        }
+    }
+    
+    fun hasNextVersion(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun hasPreviousVersion(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun moveToNextVersion(): MessageVersion? {
+        if (hasNextVersion()) {
+            currentVersionIndex++
+            return getCurrentVersion()
+        }
+        return null
+    }
+    
+    fun moveToPreviousVersion(): MessageVersion? {
+        if (hasPreviousVersion()) {
+            currentVersionIndex--
+            return getCurrentVersion()
+        }
+        return null
+    }
+}
