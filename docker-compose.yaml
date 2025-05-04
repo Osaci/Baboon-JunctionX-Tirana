@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lilotest_app:latest
+    ports:
+      - "8000:8000"
+    secrets:
+      - aws_access_key
+      - aws_secret_key
+      - redis_password
+      - carbon_beanbag_key
+      - spiritual_slate_key
+      - ultra_function_key
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - AWS_ACCESS_KEY_FILE=/run/secrets/aws_access_key
+      - AWS_SECRET_KEY_FILE=/run/secrets/aws_secret_key
+      - S3_BUCKET_NAME=lilotest-images
+      - S3_REGION=eu-north-1
+      - GCP_KEY_PATH_1=/run/secrets/carbon_beanbag_key
+      - GCP_KEY_PATH_2=/run/secrets/spiritual_slate_key
+      - GCP_KEY_PATH_3=/run/secrets/ultra_function_key
+    depends_on:
+      - redis
+    networks:
+      - lilo_net
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      labels:
+        - "com.docker.service.name=lilotest_app"
+
+  chat_handover:
+    build:
+      context: .
+      dockerfile: Dockerfile.chat
+    image: lilotest_chat:latest
+    ports:
+      - "8765:8765"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    secrets:
+      - redis_password
+    depends_on:
+      - redis
+    networks:
+      - lilo_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "com.docker.service.name=lilotest_chat"
+
+  redis:
+    image: redis:6.2-alpine
+    command: sh -c "redis-server --requirepass $$(cat /run/secrets/redis_password)"
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - lilo_net
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  lilo_net:
+    driver: overlay
+    attachable: true
+
+secrets:
+  redis_password:
+    external: true
+  aws_access_key:
+    external: true
+  aws_secret_key:
+    external: true
+  carbon_beanbag_key:
+    external: true
+  spiritual_slate_key:
+    external: true
+  ultra_function_key:
+    external: true
