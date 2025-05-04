@@ -1,0 +1,1640 @@
+with this below redis config are there some required modifications into the chat_handover_server. The redis secret is stored into the docker secrets as described in the docker-compose.yaml? also when building the lilotest_chat local container are below modules sufficient? Also is there something else to take into account (such as the nginx config file)?
+
+/app/requirements.txt
+# FastAPI and related dependencies
+requests>=2.32.3
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.12.2
+pandas>=2.0.0
+openpyxl>=3.1.2
+fastapi>=0.104.1
+uvicorn>=0.23.2
+gunicorn>=21.1.0
+starlette>=0.27.0
+pydantic>=2.4.2
+
+# Redis client
+redis>=5.0.1
+
+# AWS SDK for S3 operations
+boto3>=1.29.0
+botocore>=1.32.0
+
+# Image processing
+Pillow>=10.1.0
+
+# Google Cloud/Vertex AI
+google-cloud-aiplatform>=1.36.4
+vertexai>=0.0.1
+google-auth>=2.23.4
+
+
+/app/redis/redis.conf
+# Redis configuration
+port 6379
+bind 0.0.0.0
+protected-mode yes
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+
+/docker-compose.yml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lilotest_app:latest
+    ports:
+      - "8000:8000"
+    secrets:
+      - aws_access_key
+      - aws_secret_key
+      - redis_password
+      - carbon_beanbag_key
+      - spiritual_slate_key
+      - ultra_function_key
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - AWS_ACCESS_KEY_FILE=/run/secrets/aws_access_key
+      - AWS_SECRET_KEY_FILE=/run/secrets/aws_secret_key
+      - S3_BUCKET_NAME=lilotest-images
+      - S3_REGION=eu-north-1
+      - GCP_KEY_PATH_1=/run/secrets/carbon_beanbag_key
+      - GCP_KEY_PATH_2=/run/secrets/spiritual_slate_key
+      - GCP_KEY_PATH_3=/run/secrets/ultra_function_key
+    depends_on:
+      - redis
+    networks:
+      - lilo_net
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      labels:
+        - "com.docker.service.name=lilotest_app"
+
+  chat_handover:
+    build:
+      context: .
+      dockerfile: Dockerfile.chat
+    image: lilotest_chat:latest
+    ports:
+      - "8765:8765"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    secrets:
+      - redis_password
+    depends_on:
+      - redis
+    networks:
+      - lilo_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "com.docker.service.name=lilotest_chat"
+
+  redis:
+    image: redis:6.2-alpine
+    command: sh -c "redis-server --requirepass $$(cat /run/secrets/redis_password)"
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - lilo_net
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  redis_data
+
+networks:
+  lilo_net:
+    driver: overlay
+    attachable: true
+
+secrets:
+  redis_password:
+    external: true
+  aws_access_key:
+    external: true
+  aws_secret_key:
+    external: true
+  carbon_beanbag_key:
+    external: true
+  spiritual_slate_key:
+    external: true
+  ultra_function_key:
+    external: true
+
+
+/Dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY ./app/requirements.txt /app
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy application code
+COPY ./app/ /app/
+
+# Create directories for secrets and keys
+RUN mkdir -p /app/keys /app/secrets
+
+# Expose part
+EXPOSE 8000
+
+# Command to run the application
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+
+/Dockerfile.chat
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY ./chat/requirements.txt /app
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy chat server code
+COPY ./chat/ /app/
+
+# Expose WebSocket port
+EXPOSE 8765
+
+# Command to run the chat server
+CMD ["python", "chat_handover_server.py"]
+
+/etc/nginx/sites-available/lilotest.com nginx
+# Proxy cache settings http level (outside server blocks)
+proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=image_cache:10m max_size=500m inactive=60m;
+
+upstream fastapi_app {
+    # Docker service and port
+    server lilotest_app:8000;  # Use the Docker service name, not 127.0.0.1
+}
+
+upstream chat_handover {
+    # WebSocket chat server
+    server lilotest_chat:8765;  # This should be your actual chat service name
+}
+
+server {
+    # HTTP server block redirecting from HTTP to HTTPS
+    listen 80;
+    server_name lilotest.com www.lilotest.com;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    # HTTPS server block
+    listen 443 ssl;
+    server_name lilotest.com www.lilotest.com;
+
+    # SSL configuration from let's encrypt
+    ssl_certificate /etc/letsencrypt/live/lilotest.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lilotest.com/privkey.pem;
+
+    # Optimize SSL settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Main application proxy
+    location / {
+        proxy_pass http://fastapi_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # WebSocket endpoint for chat handover
+    location /ws {
+        proxy_pass http://chat_handover;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket specific timeouts
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+    
+    # Web interface for chat representatives
+    location /chat/ {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /chat/index.html;
+    }
+
+    # Proxy S3 images
+    location /images/ {
+        # Enable proxy cache
+        proxy_cache image_cache;
+        proxy_cache_key $scheme$proxy_host$request_uri;
+        proxy_cache_valid 200 302 24h;
+        proxy_cache_valid 404 1m;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+
+        # Add cache status header
+        add_header X-Cache-Status $upstream_cache_status;
+
+        # Pass to S3
+        proxy_pass https://lilotest-images.s3.eu-north-1.amazonaws.com/;
+        proxy_set_header Host lilotest-images.s3.eu-north-1.amazonaws.com;
+
+        # Cache settings
+        expires 1d;
+        add_header Cache-Control "public, max-age=86400";
+    }
+}
+
+
+/app/server/chat_handover_server.py
+import asyncio
+import json
+import uuid
+import websockets
+from datetime import datetime
+import logging
+from typing import Dict, Set
+import redis
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ChatHandoverServer:
+    def __init__(self):
+        self.active_connections: Dict[str, Dict] = {}  # session_id -> connection info
+        self.waiting_queue: asyncio.Queue = asyncio.Queue()
+        self.representative_pool: Set[websockets.WebSocketServerProtocol] = set()
+        self.redis_client = redis.Redis(
+            host=os.getenv('REDIS_HOST', 'localhost'),
+            port=int(os.getenv('REDIS_PORT', 6379)),
+            db=int(os.getenv('REDIS_DB', 0)),
+            password=os.getenv('REDIS_PASSWORD')  # Read from Docker secret
+        )
+        
+    async def register_client(self, websocket, path):
+        """Register a new client connection"""
+        try:
+            # Wait for initial message to identify client type
+            initial_msg = await websocket.recv()
+            data = json.loads(initial_msg)
+            
+            if data.get('type') == 'mobile_client':
+                await self.handle_mobile_client(websocket, data)
+            elif data.get('type') == 'representative':
+                await self.handle_representative(websocket, data)
+                
+        except websockets.exceptions.ConnectionClosed:
+            logger.info("Connection closed")
+        except Exception as e:
+            logger.error(f"Error in register_client: {e}")
+            
+    async def handle_mobile_client(self, websocket, data):
+        """Handle mobile client requesting support"""
+        session_id = str(uuid.uuid4())
+        user_info = data.get('user_info', {})
+        
+        # Store session info in Redis
+        session_data = {
+            'session_id': session_id,
+            'user_info': user_info,
+            'status': 'waiting',
+            'created_at': datetime.now().isoformat(),
+            'chat_history': data.get('chat_history', [])
+        }
+        
+        self.redis_client.set(f"session:{session_id}", json.dumps(session_data))
+        
+        # Add to waiting queue
+        await self.waiting_queue.put({
+            'session_id': session_id,
+            'websocket': websocket,
+            'user_info': user_info
+        })
+        
+        # Notify client they're in queue
+        await websocket.send(json.dumps({
+            'type': 'queued',
+            'session_id': session_id,
+            'position': self.waiting_queue.qsize()
+        }))
+        
+        # Wait for representative assignment
+        try:
+            while True:
+                message = await websocket.recv()
+                data = json.loads(message)
+                
+                if data.get('type') == 'message':
+                    # Forward message to assigned representative
+                    await self.forward_to_representative(session_id, data['content'])
+                    
+        except websockets.exceptions.ConnectionClosed:
+            # Clean up session
+            self.redis_client.delete(f"session:{session_id}")
+            
+    async def handle_representative(self, websocket, data):
+        """Handle representative connection"""
+        rep_id = data.get('rep_id')
+        
+        self.representative_pool.add(websocket)
+        
+        # Check waiting queue
+        await self.check_waiting_queue()
+        
+        try:
+            while True:
+                message = await websocket.recv()
+                data = json.loads(message)
+                
+                if data.get('type') == 'accept_chat':
+                    await self.assign_chat_to_representative(websocket, data['session_id'])
+                elif data.get('type') == 'message':
+                    await self.forward_to_client(data['session_id'], data['content'])
+                elif data.get('type') == 'end_chat':
+                    await self.end_chat_session(data['session_id'])
+                    
+        except websockets.exceptions.ConnectionClosed:
+            self.representative_pool.remove(websocket)
+            
+    async def forward_to_representative(self, session_id, message):
+        """Forward message from client to representative"""
+        session_data = self.redis_client.get(f"session:{session_id}")
+        if session_data:
+            session_info = json.loads(session_data)
+            rep_websocket = session_info.get('representative_websocket')
+            
+            if rep_websocket and rep_websocket in self.representative_pool:
+                await rep_websocket.send(json.dumps({
+                    'type': 'client_message',
+                    'session_id': session_id,
+                    'content': message
+                }))
+                
+    async def forward_to_client(self, session_id, message):
+        """Forward message from representative to client"""
+        session_data = self.redis_client.get(f"session:{session_id}")
+        if session_data:
+            session_info = json.loads(session_data)
+            client_websocket = session_info.get('client_websocket')
+            
+            if client_websocket:
+                await client_websocket.send(json.dumps({
+                    'type': 'representative_message',
+                    'content': message
+                }))
+                
+    async def check_waiting_queue(self):
+        """Check if there are clients waiting and representatives available"""
+        if not self.waiting_queue.empty() and self.representative_pool:
+            client = await self.waiting_queue.get()
+            available_rep = next(iter(self.representative_pool))
+            
+            # Notify representative of new chat request
+            await available_rep.send(json.dumps({
+                'type': 'new_chat_request',
+                'session_id': client['session_id'],
+                'user_info': client['user_info']
+            }))
+
+# Run the server
+async def main():
+    server = ChatHandoverServer()
+    async with websockets.serve(server.register_client, "0.0.0.0", 8765):
+        logger.info("Chat handover server started on port 8765")
+        await asyncio.Future()  # run forever
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+
+/app/app.py
+
+import os
+import json
+import uuid
+import redis
+import logging
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
+from fastapi import FastAPI, Request, Response, Cookie, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from starlette.responses import JSONResponse
+
+from vertex import process_message
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Lilotest Chat API")
+
+origins = [
+    "https://lilotest.com",
+    "http://localhost:3000",
+    "http://localhost:8000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def read_secret(secret_path):
+    try:
+        with open(secret_path, 'r') as file:
+            return file.read().strip()
+    except Exception as e:
+        logger.error(f"Failed to read secret from {secret_path}: {e}")
+        return None
+
+redis_password_path = os.environ.get('REDIS_PASSWORD_FILE', '/run/secrets/redis_password')
+
+# Read secrets and set them as environment variables for boto3
+
+REDIS_PASSWORD = None
+if os.path.exists(redis_password_path):
+    REDIS_PASSWORD = read_secret(redis_password_path)
+    if REDIS_PASSWORD:
+        print(f"Redis password loaded succesfully, length: {len(REDIS_PASSWORD)}") 
+    else:
+        print(f"Failed to load Redis password") 
+else:
+    print(f"Redis password not found at path: {redis_password_path}") 
+
+# Initialize Redis client
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_DB = int(os.environ.get("REDIS_DB", 0))
+#REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", None)
+
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT, 
+    db=REDIS_DB,
+    password=REDIS_PASSWORD,
+    decode_responses=True
+)
+
+try:
+    redis_client.ping()
+    print("Redis connection successful")
+except Exception as e:
+    print(f"Redis connection failed: {e}")
+
+print(f"Secret path exists: {os.path.exists(redis_password_path)}")
+print(f"REDIS_PASSWORD length: {len(REDIS_PASSWORD) if REDIS_PASSWORD else 0}")
+
+# Session expiry time (24 hours)
+SESSION_EXPIRY = 60 * 60 * 24
+
+# Models 
+class MessageRequest(BaseModel):
+    message: str
+
+class MessageResponse(BaseModel):
+    response: Dict[str, Any]
+    session_id: str
+
+# Helper functions
+def get_or_create_session(session_id: Optional[str] = None) -> str:
+    """Get existing session or create a new one"""
+    if session_id and redis_client.exists(f"session:{session_id}"):
+        # Reset session expiry time
+        redis_client.expire(f"session:{session_id}", SESSION_EXPIRY)
+        redis_client.expire(f"history:{session_id}", SESSION_EXPIRY)
+        return session_id
+
+    # Create new session
+    new_session_id = str(uuid.uuid4())
+    redis_client.set(f"session:{new_session_id}", json.dumps({
+        "created_at": datetime.now().isoformat(),
+    }), ex=SESSION_EXPIRY)
+
+    # Initialize empty history
+    redis_client.set(f"history:{new_session_id}", json.dumps([]), ex=SESSION_EXPIRY)
+
+    return new_session_id
+
+def get_chat_history(session_id: str) -> List[Dict[str, Any]]:
+    """Get chat history for a session"""
+    history_json = redis_client.get(f"history:{session_id}")
+    if history_json:
+        return json.loads(history_json)
+    return []
+
+def update_chat_history(session_id: str, entry: Dict[str, Any]) -> None:
+    """Update chat history for a session"""
+    history = get_chat_history(session_id)
+    history.append(entry)
+    redis_client.set(f"history:{session_id}", json.dumps(history), ex=SESSION_EXPIRY)
+
+@app.post("/send-message", response_model=MessageResponse)
+async def send_message(
+    request: MessageRequest,
+    response: Response,
+    session_id: Optional[str] = Cookie(None)
+) -> MessageResponse:
+
+    """
+    Send message to the chat for response
+    """
+    # Get or create a session
+    session_id = get_or_create_session(session_id)
+
+    # Set secure cookie
+    response.set_cookie(
+        key="session_id",
+        value=session_id,
+        max_age=SESSION_EXPIRY,
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
+
+    # Get chat history 
+    history = get_chat_history(session_id)
+
+    # Process images
+    result = process_message(request.message, history)
+
+    # Update chat history
+    update_chat_history(session_id, result["history_entry"])
+
+    return MessageResponse(
+        response=result["response"],
+        session_id=session_id
+    )
+
+@app.get("/cleanup-sessions")
+async def cleanup_expired_sessions():
+    """Admin endpoint to clean up expired sessions"""
+    # This should be protected with authentication 
+
+    pattern = "session:*"
+    cursor = 0
+    cleaned = 0
+
+    while True:
+        cursor, keys = redis_client.scan(cursor, pattern, 100)
+        for key in keys:
+            session_id = key.split(":")[1]
+            if not redis_client.exists(key):
+                #Delete session history
+                redis_client.delete(f"history:{session_id}")
+                cleaned += 1
+
+        if cursor == 0:
+            break
+
+    return {"status": "success", "cleaned_sessions": cleaned}
+
+# Run with: uvicorn app:app --reload
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+/app/vertex.py
+from fuzzywuzzy import fuzz, process
+import pandas as pd
+import boto3
+from botocore.exceptions import ClientError
+
+from PIL import Image
+from io import BytesIO
+import requests
+import os
+import json
+import uuid
+import re
+import logging
+import base64
+from typing import Optional, List, Dict, Any, Optional, Tuple, Union
+
+import vertexai
+from vertexai.preview.generative_models import GenerativeModel, Part, SafetySetting, FinishReason, Tool, GenerationConfig
+from vertexai.preview.generative_models import grounding
+from vertexai.preview.generative_models import Image as VertexImage
+
+from utils import exponential_backoff_retry, SDKRotator, S3ImageManager
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger(__name__)
+
+# Read GCP service account keys from Docker secrets
+gcp_key_paths = [
+    os.environ.get('GCP_KEY_PATH_1', '/run/secrets/carbon_beanbag_key'),
+    os.environ.get('GCP_KEY_PATH_2', '/run/secrets/spiritual_slate_key'),
+    os.environ.get('GCP_KEY_PATH_3', '/run/secrets/ultra_function_key'),
+]
+
+# Load SDK configurations
+
+SDK_CONFIGS = [
+    {
+        "project_id": "carbon-beanbag-410610",
+        "key_path": gcp_key_paths[0],
+        "location": "us-central1",
+    },
+    {
+        "project_id": "spiritual-slate-410612",
+        "key_path": gcp_key_paths[1],
+        "location": "us-central1",
+    },
+    {
+        "project_id": "ultra-function-439306-r4",
+        "key_path": gcp_key_paths[2],
+        "location": "us-central1",
+    }
+]
+
+# Setup S3 manager for handling images
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "lilotest-images")
+S3_REGION = os.environ.get("S3_REGION", "eu-north-1")
+s3_manager = S3ImageManager(S3_BUCKET_NAME, S3_REGION)
+
+# Setup SDK rotator
+sdk_rotator = SDKRotator(SDK_CONFIGS)
+
+# Common generation config
+GENERATION_CONFIG = {
+    "max_output_tokens": 8192,
+    "temperature": 0.9,
+    "top_p": 0.9,
+}
+
+# Safety settings
+SAFETY_SETTINGS = [
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold=SafetySetting.HarmBlockThreshold.BLOCK_NONE
+    ),
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold=SafetySetting.HarmBlockThreshold.BLOCK_NONE
+    ), 
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold=SafetySetting.HarmBlockThreshold.BLOCK_NONE
+    ), 
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold=SafetySetting.HarmBlockThreshold.BLOCK_NONE
+    ), 
+] 
+
+# Search tool for gemini models
+SEARCH_TOOL = [
+    Tool.from_google_search_retrieval(
+        google_search_retrieval=grounding.GoogleSearchRetrieval()
+    ),
+]
+
+class BaboonQAManager:
+    def __init__(self, bucket_url='https://questions-answers-baboon.s3.eu-north-1.amazonaws.com/questions_and_answers.xlsx'):
+        self.bucket_url = bucket_url
+        self.qa_data = None
+        self.support_info = {
+            "phone": "+355676038187",
+            "email": "support@baboon.al"
+        }
+        self.load_qa_data()
+    
+    def load_qa_data(self):
+        """Load Q&A data from S3 bucket via URL"""
+        try:
+            logger.info(f"Loading Q&A data from: {self.bucket_url}")
+            
+            # Test connection first
+            try:
+                import socket
+                socket.create_connection(("questions-answers-baboon.s3.eu-north-1.amazonaws.com", 443), timeout=5)
+                logger.info("Successfully connected to S3 host")
+            except Exception as e:
+                logger.error(f"Cannot connect to S3 host: {e}")
+            
+            # Try with different SSL settings
+            try:
+                # First attempt - normal request
+                response = requests.get(self.bucket_url, timeout=30)
+                logger.info(f"Normal request status: {response.status_code}")
+            except Exception as e:
+                logger.error(f"Normal request failed: {e}")
+                
+                # Second attempt - without SSL verification (for debugging only)
+                try:
+                    response = requests.get(self.bucket_url, timeout=30, verify=False)
+                    logger.warning("Request succeeded without SSL verification")
+                    logger.info(f"No-SSL request status: {response.status_code}")
+                except Exception as e2:
+                    logger.error(f"No-SSL request also failed: {e2}")
+                    
+                    # Third attempt - with explicit headers
+                    try:
+                        headers = {
+                            'User-Agent': 'Mozilla/5.0',
+                            'Accept': '*/*'
+                        }
+                        response = requests.get(self.bucket_url, headers=headers, timeout=30)
+                        logger.info(f"Headers request status: {response.status_code}")
+                    except Exception as e3:
+                        logger.error(f"Headers request failed: {e3}")
+                        raise e3
+            
+            response.raise_for_status()
+            
+            # Log successful response details
+            logger.info(f"Response headers: {dict(response.headers)}")
+            logger.info(f"Content length: {len(response.content)} bytes")
+            
+            # Load into pandas
+            self.qa_data = pd.read_excel(BytesIO(response.content))
+            logger.info(f"Successfully loaded {len(self.qa_data)} Q&A pairs from URL")
+            logger.info(f"Columns in Q&A data: {self.qa_data.columns.tolist()}")
+            
+        except Exception as e:
+            logger.error(f"Error loading Q&A data from URL: {e}")
+            logger.exception("Full traceback:")
+            self.qa_data = None
+    
+    def find_best_match(self, user_message):
+        """Find best matching question using fuzzy matching"""
+        if self.qa_data is None or self.qa_data.empty:
+            logger.warning("No Q&A data available for matching")
+            return None, 0
+        
+        questions = self.qa_data['Question'].tolist()
+        logger.info(f"Searching for match among {len(questions)} questions")
+        best_match, score = process.extractOne(user_message, questions, scorer=fuzz.token_sort_ratio)
+        logger.info(f"Best match: '{best_match}' with score: {score}")
+        
+        # Get the corresponding answer
+        answer_index = self.qa_data[self.qa_data['Question'] == best_match].index[0]
+        answer = self.qa_data.loc[answer_index, 'Answer']
+        
+        return answer, score
+    
+    def process_question(self, user_message):
+        """Process user question and return appropriate response"""
+        answer, score = self.find_best_match(user_message)
+        
+        # Define thresholds
+        GOOD_MATCH_THRESHOLD = 85
+        POOR_MATCH_THRESHOLD = 40
+      
+        logger.info(f"Match score: {score}, Good threshold: {GOOD_MATCH_THRESHOLD}, Poor threshold: {POOR_MATCH_THRESHOLD}")
+        
+        if score >= GOOD_MATCH_THRESHOLD:
+            # Good match - return the answer
+            logger.info(f"Good match found, returning answer: {answer}")
+            return {
+                "type": "qa_answer",
+                "response": answer,
+                "confidence": "high"
+            }
+        elif score >= POOR_MATCH_THRESHOLD:
+            # Poor match - return support contact info
+            logger.info("Poor match, returning support contact")
+            return {
+                "type": "support_contact",
+                "response": f"I'm not quite sure about that. You can contact our support team at {self.support_info['phone']} or email {self.support_info['email']}. Would you like to speak with a representative?",
+                "confidence": "low",
+                "support_info": self.support_info
+            }
+        else:
+            # No match - return None to use regular bot response
+            logger.info("No match found, returning None")
+            return None
+
+# Initialize the Q&A manager globally
+qa_manager = BaboonQAManager()
+
+def initialize_vertex_with_config(config: Dict[str, Any]) -> None:
+    """Initialize vertex ai with the given configuration"""
+
+    # Set google credentials for authentication
+    if os.path.exists(config["key_path"]):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["key_path"]
+
+        # Initialize Vertex AI
+        vertexai.init(
+            project=config["project_id"],
+            location=config["location"],
+        )
+        logger.info(f"Initialized Vertex AI with project {config['project_id']}")
+
+    else:
+        logger.error(f"GCP key file not found at: {config['key_path']}")
+        raise FileNotFoundError(f"GCP key file not found: {config['key_path']}")
+
+def is_image_request(message: str) -> bool:
+    """Check if the message is requesting an image generation"""
+    # Check for image generation keywords (.image or image:)
+    pattern = r"(\.image|image:)"
+    return bool(re.search(pattern, message, re.IGNORECASE))
+
+def generate_text_response(message: str, history: List[Dict[str, Any]]) -> str:
+    """Generate text response using Gemini model with exponential retry and SDK rotation logic.
+    """
+    def _generate_with_current_sdk():
+        config = sdk_rotator.get_current_config()
+        initialize_vertex_with_config(config)
+
+        instruction = """Helpful and assisting ai."""
+
+        model = GenerativeModel(
+            "gemini-1.5-flash-002",
+            system_instruction=[instruction],
+            #tools=SEARCH_TOOL,
+            generation_config=GENERATION_CONFIG,
+            safety_settings=SAFETY_SETTINGS,
+        )
+            
+        # Format history into Vertex AI format
+        formatted_history = []
+        for entry in history:
+            formatted_history.append({"role": "user", "parts": [{"text": entry["user_message"]}]})
+
+            if "bot_message" in entry:        
+                formatted_history.append({"role": "model", "parts": [{"text": entry["bot_message"]}]})
+
+        # Add current message
+        conversation = formatted_history + [{"role": "user", "parts": [{"text": message}]}]
+
+        # Generate response
+        response = model.generate_content(conversation)
+
+        if hasattr(response, 'text'):
+            return response.text
+        elif hasattr(response, 'parts'):
+
+            text_parts = []
+            for part in response.parts:
+                if hasattr(part, 'text') and part.text:
+                    text_parts.append(part.text)
+            return " ".join(text_parts)
+        else:
+            return str(response)
+
+    try:
+        # Try to generate with exponential backoff and SDK rotation
+        return exponential_backoff_retry(_generate_with_current_sdk)
+    except Exception as e:
+        # If all SDKs fail after retries, return an error message
+        logger.error(f"All SDKs failed to generate text response: {str(e)}")
+        return f"I'm sorry, I'm having trouble processing your request right now. Please try again later. (Error: {str(e)})"
+
+
+def compress_to_webp(image_data: bytes, quality: int = 85, max_size: int = 800) -> Tuple[bytes, str]:
+    """
+    Compress image to WebP format with specified quality
+
+    Args:
+        image_data: Raw image bytes
+        quality: WebP compression quality (0-100%)
+        max_size: Maximum dimension for resizing large images
+
+    Returns:
+        Tuple of (compressed image bytes, mimetype)
+    """
+
+    # Open image from bytes
+    img = Image.open(BytesIO(image_data))
+
+    # Resize if the image is too large while maintaining aspect ratio
+    if max(img.width, img.height) > max_size:
+        if img.width > img.height:
+            new_width = max_size
+            new_height = int(img.height * (max_size / img.width))
+        else:
+            new_height = max_size
+            new_width = int(img.width * (max_size / img.height))
+
+        img = img.resize((new_width, new_height), Image.LANCZOS)
+
+    # Save as WebP with specified quality
+    output = BytesIO()
+    img.save(output, format="WEBP", quality=quality)
+    output.seek(0)
+
+    return output.getvalue(), "image/webp"
+
+
+def generate_image(prompt: str) -> Tuple[str, Optional[str]]:
+    """
+    Generate image using Imagen 3 with retry and rotation logic,
+    compress to WebP and handle fallbacks
+
+    Args:
+        prompt: Text prompt for image generation
+
+    Returns:
+        Tuple of (S3 URL or None, base64 data URL or None)
+    """
+
+    def _generate_with_current_sdk():
+
+        config = sdk_rotator.get_current_config()
+        initialize_vertex_with_config(config)
+
+        # Clean up the prompt - remove image keywords
+        clean_prompt = re.sub(r"(\.image|image:)", "", prompt, flags=re.IGNORECASE).strip()
+
+        from vertexai.preview.vision_models import ImageGenerationModel
+
+        generation_model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-002")
+
+        image_response = generation_model.generate_images(
+            prompt=clean_prompt,
+            number_of_images=1,
+            aspect_ratio="1:1",
+        )   
+
+        logger.info(f"image_response: {image_response}")
+        # Extract image data - first try the new API format
+        try:
+            if not image_response:
+                raise ValueError("No images were created")
+
+            image_data = image_response[0]._image_bytes
+
+            # Compress to WebP format and 85% quality
+            compressed_data, mimetype = compress_to_webp(image_data, quality=85)
+
+            # Generate unique filename with WebP extension
+            filename = f"image_{uuid.uuid4()}.webp"
+
+            try:
+                # Try to upload to S3
+                image_url = s3_manager.upload_image(compressed_data, filename, content_type=mimetype)
+
+                if hasattr(image_response[0], 'enhanced_prompt'):
+                    logger.info(f"Enhanced prompt: {image_response[0].enhanced_prompt}")
+
+                # Success - return URL with no fallback needed
+                return image_url, None
+            except Exception as s3_error:
+                # S3 upload failed, use base64 fallback with further compression
+                logger.warning(f"Failed to upload to S3, using base64 fallback: {str(s3_error)}")
+
+                # Apply more aggressive compression for fallback (70% quality, 600px max)
+                fallback_data, fallback_mimetype = compress_to_webp(image_data, quality=70, max_size=600)
+
+                # Convert to base64 data URL
+                base64_encoded = base64.b64encode(fallback_data).decode('utf-8')
+                data_url = f"data:{fallback_mimetype};base64,{base64_encoded}"
+ 
+                return None, data_url
+
+        except Exception as processing_error:
+            logger.error(f"Error processing image: {str(processing_error)}")
+            raise
+
+    try:
+        # Try to generate with exponential backoff and SDK rotation
+        return exponential_backoff_retry(_generate_with_current_sdk)
+    except Exception as e:
+        # If all SDKs fail after some retries, return an error message
+        logger.error(f"All SDKs failed to generate image: {str(e)}")
+        return None, None
+
+
+def enhance_s3_image_manager():
+    """Add a method for WebP compression to the S3ImageManager class"""
+    
+    def upload_webp_image(self, image_data: bytes, key_name: str, quality: int = 85, max_size: int = 800) -> str:
+        """
+        Compress image to WebP and upload to S3
+        
+        Args:
+            image_data: Original image data
+            key_name: S3 object key name
+            quality: WebP compression quality (0-100)
+            max_size: Maximum dimension for resizing
+     
+        Returns:
+            Public URL of the uploaded image
+        """
+        compressed_data, mimetype = compress_to_webp(image_data, quality, max_size)
+
+        # Use existing upload_image method with the compressed data
+        return self.upload_image(compressed_data, key_name, content_type=mimetype)
+
+    # Add the method to the S3 Image Manager class 
+    S3ImageManager.upload_webp_image = upload_webp_image
+
+def extract_current_message(full_prompt: str) -> str:
+    """Extract the current user message from the full prompt with history"""
+    
+    # Look for the CURRENT USER MESSAGE marker
+    marker = "=== CURRENT USER MESSAGE ==="
+    
+    if marker in full_prompt:
+        # Split at the marker and take everything after it
+        parts = full_prompt.split(marker)
+        if len(parts) > 1:
+            current_message = parts[1].strip()
+            logger.info(f"Extracted current message: {current_message}")
+            return current_message
+    
+    # If no marker found, return the full prompt
+    logger.info("No marker found, using full prompt")
+    return full_prompt.strip()
+
+def process_message(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Process incoming message and generate appropriate response"""
+    
+    # Extract the current message for Q&A matching
+    current_message = extract_current_message(message)
+    
+    # First, check if this is a Q&A type question
+    qa_result = qa_manager.process_question(current_message)
+    
+    if qa_result:
+        # Q&A system has a response
+        if qa_result["type"] == "qa_answer":
+            response = {
+                "type": "text",
+                "text": qa_result["response"],
+                "source": "qa_system"
+            }
+        elif qa_result["type"] == "support_contact":
+            response = {
+                "type": "support_contact",
+                "text": qa_result["response"],
+                "support_info": qa_result["support_info"],
+                "show_representative_button": True
+            }
+        
+        history_entry = {
+            "user_message": current_message,  # Store only the current message
+            "bot_message": qa_result["response"]
+        }
+        
+        return {"response": response, "history_entry": history_entry}
+    
+    # If no Q&A match, proceed with regular processing
+    if is_image_request(current_message):
+        # ... (existing image generation code)
+        logger.info(f"Processing image generation request: {current_message}")
+        image_url, image_base64 = generate_image(current_message)
+        
+        text_response = "Generated image"
+        if image_url:
+            text_response = f"{text_response}\n!IMAGEURL!{image_url}"
+        elif image_base64:
+            text_response = f"{text_response}\n!IMAGEDATA!{image_base64}"
+        
+        response = {
+            "type": "image",
+            "text": text_response,
+            "url": image_url,
+            "base64": image_base64
+        }
+        
+        history_entry = {
+            "user_message": current_message,  # Store only the current message
+            "bot_message": "image"
+        }
+    else:
+        # Generate text response using the full prompt
+        logger.info(f"Processing text request: {message}")  # Use full message for context
+        text_response = generate_text_response(message, history)  # Pass full message
+        
+        response = {
+            "type": "text",
+            "text": text_response
+        }
+        
+        history_entry = {
+            "user_message": current_message,  # Store only the current message
+            "bot_message": text_response
+        }
+    
+    return {"response": response, "history_entry": history_entry}
+    
+    # If no Q&A match, proceed with regular processing
+    if is_image_request(message):
+        # ... (existing image generation code)
+        logger.info(f"Processing image generation request: {message}")
+        image_url, image_base64 = generate_image(message)
+        
+        text_response = "Generated image"
+        if image_url:
+            text_response = f"{text_response}\n!IMAGEURL!{image_url}"
+        elif image_base64:
+            text_response = f"{text_response}\n!IMAGEDATA!{image_base64}"
+        
+        response = {
+            "type": "image",
+            "text": text_response,
+            "url": image_url,
+            "base64": image_base64
+        }
+        
+        history_entry = {
+            "user_message": message,
+            "bot_message": "image"
+        }
+    else:
+        # Generate text response
+        logger.info(f"Processing text request: {message}")
+        text_response = generate_text_response(message, history)
+        
+        response = {
+            "type": "text",
+            "text": text_response
+        }
+        
+        history_entry = {
+            "user_message": message,
+            "bot_message": text_response
+        }
+    
+    return {"response": response, "history_entry": history_entry}
+    
+    logger.info("No QA match, proceeding with regular processing")
+    
+    # If no Q&A match, proceed with regular processing
+    if is_image_request(message):
+        # ... (existing image generation code)
+        logger.info(f"Processing image generation request: {message}")
+        image_url, image_base64 = generate_image(message)
+        
+        text_response = "Generated image"
+        if image_url:
+            text_response = f"{text_response}\n!IMAGEURL!{image_url}"
+        elif image_base64:
+            text_response = f"{text_response}\n!IMAGEDATA!{image_base64}"
+        
+        response = {
+            "type": "image",
+            "text": text_response,
+            "url": image_url,
+            "base64": image_base64
+        }
+        
+        history_entry = {
+            "user_message": message,
+            "bot_message": "image"
+        }
+    else:
+        # Generate text response
+        logger.info(f"Processing text request: {message}")
+        text_response = generate_text_response(message, history)
+        
+        response = {
+            "type": "text",
+            "text": text_response
+        }
+        
+        history_entry = {
+            "user_message": message,
+            "bot_message": text_response
+        }
+    
+    return {"response": response, "history_entry": history_entry}    
+    # If no Q&A match, proceed with regular processing
+    if is_image_request(message):
+        # ... (existing image generation code)
+        logger.info(f"Processing image generation request: {message}")
+        image_url, image_base64 = generate_image(message)
+        
+        text_response = "Generated image"
+        if image_url:
+            text_response = f"{text_response}\n!IMAGEURL!{image_url}"
+        elif image_base64:
+            text_response = f"{text_response}\n!IMAGEDATA!{image_base64}"
+        
+        response = {
+            "type": "image",
+            "text": text_response,
+            "url": image_url,
+            "base64": image_base64
+        }
+        
+        history_entry = {
+            "user_message": message,
+            "bot_message": "image"
+        }
+    else:
+        # Generate text response
+        logger.info(f"Processing text request: {message}")
+        text_response = generate_text_response(message, history)
+        
+        response = {
+            "type": "text",
+            "text": text_response
+        }
+        
+        history_entry = {
+            "user_message": message,
+            "bot_message": text_response
+        }
+    
+    return {"response": response, "history_entry": history_entry}
+
+
+
+/app/web/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baboon Support Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo {
+            width: 40px;
+            height: 40px;
+            margin-right: 15px;
+        }
+        
+        .chat-container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .queue-panel {
+            border-right: 1px solid #ddd;
+            width: 300px;
+            height: 600px;
+            overflow-y: auto;
+        }
+        
+        .chat-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 70%;
+        }
+        
+        .client-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+        }
+        
+        .rep-message {
+            background-color: #f5f5f5;
+        }
+        
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #ddd;
+            display: flex;
+        }
+        
+        .input-area input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        
+        .input-area button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .queue-item {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+        }
+        
+        .queue-item:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        .status-online {
+            background-color: #4CAF50;
+        }
+        
+        .status-waiting {
+            background-color: #FFC107;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="/api/baboon-logo.png" alt="Baboon Logo" class="logo">
+        <h2>Baboon Support Chat</h2>
+    </div>
+    
+    <div class="chat-container" style="display: flex;">
+        <div class="queue-panel">
+            <h3 style="padding: 15px; margin: 0; border-bottom: 1px solid #ddd;">Waiting Queue</h3>
+            <div id="queueList"></div>
+        </div>
+        
+        <div class="chat-panel">
+            <div id="chatHeader" style="padding: 15px; border-bottom: 1px solid #ddd;">
+                <h3 style="margin: 0;">Select a customer to start chatting</h3>
+            </div>
+            
+            <div id="messages" class="messages"></div>
+            
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+                <button id="sendButton" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/chat.js"></script>
+</body>
+</html>
+
+/app/web/js/chat.js
+class RepresentativeChat {
+    constructor() {
+        this.ws = null;
+        this.currentSession = null;
+        this.repId = 'rep_' + Math.random().toString(36).substr(2, 9);
+        
+        this.connectWebSocket();
+        this.bindEvents();
+    }
+    
+    connectWebSocket() {
+        this.ws = new WebSocket('wss://lilotest.com/ws');
+        
+        this.ws.onopen = () => {
+            console.log('Connected to chat server');
+            // Identify as representative
+            this.ws.send(JSON.stringify({
+                type: 'representative',
+                rep_id: this.repId
+            }));
+        };
+        
+        this.ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleMessage(data);
+        };
+        
+        this.ws.onclose = () => {
+            console.log('Disconnected from chat server');
+            // Attempt to reconnect after 5 seconds
+            setTimeout(() => this.connectWebSocket(), 5000);
+        };
+    }
+    
+    handleMessage(data) {
+        switch(data.type) {
+            case 'new_chat_request':
+                this.addToQueue(data);
+                break;
+            case 'client_message':
+                this.displayClientMessage(data);
+                break;
+            case 'chat_ended':
+                this.handleChatEnded(data);
+                break;
+        }
+    }
+    
+    addToQueue(data) {
+        const queueList = document.getElementById('queueList');
+        const queueItem = document.createElement('div');
+        queueItem.className = 'queue-item';
+        queueItem.innerHTML = `
+            <span class="status-indicator status-waiting"></span>
+            <strong>${data.user_info.name || 'Customer'}</strong>
+            <div style="font-size: 0.9em; color: #666;">
+                Waiting for ${this.formatWaitTime(data.created_at)}
+            </div>
+        `;
+        
+        queueItem.onclick = () => this.acceptChat(data.session_id, data.user_info);
+        queueList.appendChild(queueItem);
+    }
+    
+    acceptChat(sessionId, userInfo) {
+        this.currentSession = sessionId;
+        
+        // Update UI
+        document.getElementById('chatHeader').innerHTML = `
+            <h3>Chatting with ${userInfo.name || 'Customer'}</h3>
+            <button onclick="chat.endChat()" style="float: right;">End Chat</button>
+        `;
+        
+        document.getElementById('messageInput').disabled = false;
+        document.getElementById('sendButton').disabled = false;
+        
+        // Clear messages
+        document.getElementById('messages').innerHTML = '';
+        
+        // Notify server
+        this.ws.send(JSON.stringify({
+            type: 'accept_chat',
+            session_id: sessionId
+        }));
+    }
+    
+    displayClientMessage(data) {
+        if (data.session_id !== this.currentSession) return;
+        
+        const messagesContainer = document.getElementById('messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message client-message';
+        messageDiv.textContent = data.content;
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    sendMessage() {
+        const input = document.getElementById('messageInput');
+        const message = input.value.trim();
+        
+        if (message && this.currentSession) {
+            // Display own message
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message rep-message';
+            messageDiv.textContent = message;
+            messagesContainer.appendChild(messageDiv);
+            
+            // Send to server
+            this.ws.send(JSON.stringify({
+                type: 'message',
+                session_id: this.currentSession,
+                content: message
+            }));
+            
+            // Clear input
+            input.value = '';
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+    
+    endChat() {
+        if (this.currentSession) {
+            this.ws.send(JSON.stringify({
+                type: 'end_chat',
+                session_id: this.currentSession
+            }));
+            
+            // Reset UI
+            this.currentSession = null;
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('sendButton').disabled = true;
+            document.getElementById('chatHeader').innerHTML = '<h3>Select a customer to start chatting</h3>';
+            document.getElementById('messages').innerHTML = '';
+        }
+    }
+    
+    bindEvents() {
+        document.getElementById('sendButton').onclick = () => this.sendMessage();
+        
+        document.getElementById('messageInput').onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                this.sendMessage();
+            }
+        };
+    }
+    
+    formatWaitTime(timestamp) {
+        const now = new Date();
+        const created = new Date(timestamp);
+        const diff = Math.floor((now - created) / 1000);
+        
+        if (diff < 60) return `${diff} seconds`;
+        if (diff < 3600) return `${Math.floor(diff / 60)} minutes`;
+        return `${Math.floor(diff / 3600)} hours`;
+    }
+}
+
+// Initialize chat when page loads
+const chat = new RepresentativeChat();
+
+
+
+current vertex and score logic
+
+
+
+
+the app is a food delivery app.
+
+How to input an excel file list from amazon s3 bucket into the client side chat where the python script uses fuzzywuzzy to recognize best matching user questions and retrieves the best matching answer from the list (see if there is Baboon Q&A)
+
+The excel file contains columns for questions and answers.
+
+There should be a four condition logic:
+
+if there is no match the chat responds with a general answer from the botresponse. If there is a poor match score between user message and questions the chat should return the support number, support email and a button for Talk to a representative (the button in client side kotlin), if there is a good match score to the questions the answer from the questions_and_answers.xlsx should be returned
+
+can you create the step by step of creating the s3 bucket role (the s3 bucket name: questions-answers-baboon), policy etc. and the modifications required to the current app.py and vertex.py to include the condition logic mentioned above.
+
+Can you also create questions_and_answers.xlsx with set of 30 common food delivery application questions?
+
+How long is the delivery time?
+Is my order ready?
+How to track the order? 
+etc. 
+
+the current logic:
+
+
+
+
+How is it possible to add a handoff system running in web browser into the chat which opens on press of the Talk with a representative button. The representative should be able to communicate with the user in the chat.
+
+idea section:
+
+on .menu keyword match combined with restaurant name the interface should return a menu from the database of menus (if there is a db available).
+
+the users orders are added into favorite list and there could be some kind of a recommendation system.
+
+what ways would there be to develop and to integrate a functionality which tracks customer delivery status (how to connect the app to a mockup delivery system) 
+

@@ -1,0 +1,2236 @@
+
+
+
+
+
+
+
+
+expected use case behavior:
+1. user sends message: hello   - Chain 1 is initialized
+2. user sends another message: hello message 2  -  chain 1 continues
+3. user presses edit message button on the first message (hello) and sends edited message: edited Hello  - 
+4. user sends another message: hello message 3  -  chain 2 continues after the edited message
+5. user decides to edit the step 1 hello message. This breaks the current chain - chain 3 is created where only the first message (which now edited) displays.
+6. user navigates back to unedited first message from prev arrow button. Now chain 2 is reinitialized and the messages sent through chain 2 display. 
+
+How the chat displays this process:
+1. user sends message: hello - the messages appear like expected
+2. user sends another message: hello message 2  -  chain 1 continues like expected
+3. user presses edit message button on the first message (hello) and sends edited message: edited Hello  -  a new chain 2 is created and only the edited first message displays as expected
+4. user sends another message: hello message 3  -  chain 2 continues but the user message is added at the same time as response unlike regular messages where user message is first inserted into chat and response appears below with delay. The user message should appear first and bot message after response is received
+5. user decides to edit the step 1 hello message. This breaks the current chain - chain 3 is created. However a bug is presented. each time user edits a message and navigates back to previous chain from the edit prev arrow and then re enters back to the last chain again for some reason the bot response is displayed duplicated (one message is displayed with 2 duplicate responses). 
+
+ 
+the logs for user interaction described above:
+
+
+
+the implementation:
+
+ChatFragment.kt
+package com.example.lilotest.ui.chat
+import android.util.Log
+import android.os.Bundle
+import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.lilotest.R
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.ui.settings.SettingsBottomSheetFragment
+import com.example.lilotest.ui.theme.ThemeManager
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+
+class ChatFragment : Fragment(), SettingsBottomSheetFragment.ThemeChangeListener, 
+                     SettingsBottomSheetFragment.AutoScrollChangeListener {
+    lateinit var viewModel: ChatViewModel
+    private lateinit var messageAdapter: MessageAdapter
+    private lateinit var messageInput: TextInputEditText
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var themeManager: ThemeManager
+    private var autoScrollEnabled = true
+
+    private val TAG = "ChatFragment"
+    private val CHAIN_TAG = "MessageChain"
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the updated layout with settings button
+        return inflater.inflate(R.layout.fragment_chat_with_settings, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Initialize Theme Manager
+        themeManager = ThemeManager(requireContext())
+        autoScrollEnabled = themeManager.isAutoScrollEnabled()
+
+        val topBar = view.findViewById<View>(R.id.top_bar)
+
+        themeManager.styleTopBar(topBar)
+
+        // Initialize ViewModel
+        viewModel = ViewModelProvider(this)[ChatViewModel::class.java]
+
+        // Setup RecyclerView
+        recyclerView = view.findViewById(R.id.messages_recycler_view)
+        recyclerView.layoutManager = LinearLayoutManager(context)
+
+        val viewHolderFactory = MessageViewHolderFactory(requireContext())
+
+        messageAdapter = MessageAdapter(viewHolderFactory)
+
+        recyclerView.adapter = messageAdapter
+        messageAdapter.setChatViewModel(viewModel)
+
+        messageAdapter.setEditMessageListener(object : MessageAdapter.EditMessageListener {
+            override fun onMessageEdited(messageId: String, newContent: String) {
+                Log.d(CHAIN_TAG, "Message edited: $messageId, starting new chain")
+                viewModel.editMessage(messageId, newContent)
+            }
+        })
+
+        messageAdapter.setVersionNavigationListener(object : MessageAdapter.MessageVersionNavigationListener {
+            override fun onPreviousVersion(threadId: String) {
+                Log.d(CHAIN_TAG, "Navigating to previous version in thread: $threadId")
+                viewModel.navigateToPreviousVersion(threadId)
+            }
+            override fun onNextVersion(threadId: String) {
+                Log.d(CHAIN_TAG, "Navigating to next version in thread: $threadId")
+                viewModel.navigateToNextVersion(threadId)
+            }
+        })
+
+        // Setup message input
+        messageInput = view.findViewById(R.id.message_input)
+        messageInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEND ||
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                sendMessage()
+                return@setOnEditorActionListener true
+            }
+            false
+        }
+
+        view.findViewById<View>(R.id.send_button).setOnClickListener {
+            sendMessage()
+        }
+
+        // Setup settings button
+        val settingsButton = view.findViewById<ImageButton>(R.id.settings_button)
+        settingsButton.setImageResource(getSettingsIconForCurrentTheme())
+        settingsButton.setOnClickListener {
+            showSettingsModal()
+        }
+
+        // Observe messages from ViewModel
+        viewModel.messages.observe(viewLifecycleOwner) { messages ->
+            Log.d(CHAIN_TAG, "Messages updated: ${messages.size} messages")
+
+            // Log which chains the messages belong to 
+            messages.forEachIndexed { index, message ->
+                Log.d(CHAIN_TAG, "Message $index: chainId=${message.chainId}, threadId=${message.threadId}")
+            }
+            messageAdapter.submitList(messages)
+            
+            // Auto-scroll to bottom if enabled
+            if (autoScrollEnabled && messages.isNotEmpty()) {
+                recyclerView.post {
+                    recyclerView.smoothScrollToPosition(messages.size - 1)
+                }
+            }
+            // Log the state of all threads
+            logMessageThreadState()
+        }
+
+        // Apply current theme
+        applyCurrentTheme()
+    }
+
+    private fun sendMessage() {
+        val messageText = messageInput.text.toString().trim()
+        if (messageText.isNotEmpty()) {
+            Log.d(CHAIN_TAG, "Sending new message")
+            viewModel.sendMessage(messageText)
+            messageInput.text?.clear()
+            
+            // Always scroll to bottom when sending a message
+            recyclerView.post {
+                recyclerView.smoothScrollToPosition((recyclerView.adapter?.itemCount ?: 1) - 1)
+            }
+        }
+    }
+
+    private fun logMessageThreadState() {
+        // Use MessageThreadLogger to log the state of threads and chains
+        MessageThreadLogger.logThreadState(
+            viewModel.getMessageThreads(),
+            viewModel.messages.value ?: emptyList()
+        )
+    }
+ 
+    private fun showSettingsModal() {
+        val settingsBottomSheet = SettingsBottomSheetFragment.newInstance()
+        settingsBottomSheet.setThemeChangeListener(this)
+        settingsBottomSheet.setAutoScrollChangeListener(this)
+        settingsBottomSheet.show(parentFragmentManager, SettingsBottomSheetFragment.TAG)
+    }
+
+    override fun onThemeChanged(theme: String) {
+        // Apply new theme
+        applyCurrentTheme()
+
+
+        view?.findViewById<View>(R.id.top_bar)?.let {
+            themeManager.styleTopBar(it)
+        }
+
+
+        // Update settings button icon
+        view?.findViewById<ImageButton>(R.id.settings_button)?.let {
+            it.setImageResource(getSettingsIconForCurrentTheme())
+        }
+        messageAdapter.notifyThemeChanged()
+    }
+
+    override fun onAutoScrollChanged(enabled: Boolean) {
+        autoScrollEnabled = enabled
+        
+        // If enabled and turned on, scroll to the bottom immediately
+        if (autoScrollEnabled && recyclerView.adapter != null && recyclerView.adapter!!.itemCount > 0) {
+            recyclerView.smoothScrollToPosition(recyclerView.adapter!!.itemCount - 1)
+        }
+    }
+
+    private fun applyCurrentTheme() {
+        // We'll apply the theme to the activity which affects all fragments
+        activity?.let {
+            themeManager.applyTheme(it)
+        }
+    }
+
+    private fun getSettingsIconForCurrentTheme(): Int {
+        val currentTheme = themeManager.getCurrentTheme()
+        return when (currentTheme) {
+            ThemeManager.THEME_LIGHT -> R.drawable.light_gear_light
+            ThemeManager.THEME_DARK -> R.drawable.dark_gear_light
+            ThemeManager.THEME_BROWN -> R.drawable.brown_gear_light
+            ThemeManager.THEME_YELLOW -> R.drawable.yellow_gear_light
+            ThemeManager.THEME_RED -> R.drawable.red_gear_light
+            ThemeManager.THEME_GREEN -> R.drawable.green_gear_light
+            ThemeManager.THEME_PURPLE -> R.drawable.purple_gear_light
+            ThemeManager.THEME_CYAN -> R.drawable.cyan_gear_light
+            else -> R.drawable.light_gear_light
+        }
+    }
+}
+
+ChatViewModel.kt
+package com.example.lilotest.ui.chat
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageThread
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.data.model.MessageVersion
+import com.example.lilotest.data.remote.MessageRepository
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.UUID
+import android.util.Log
+
+class ChatViewModel : ViewModel() {
+
+    private val TAG = "ChatViewModel"
+    private val repository = MessageRepository()
+
+    private val _messages = MutableLiveData<List<Message>>(emptyList())
+    val messages: LiveData<List<Message>> = _messages
+
+    // Store message threads for version history
+    private val messageThreads = mutableMapOf<String, MessageThread>()
+
+    // Track the active thread for navigation operations
+    private var activeThreadId: String? = null
+
+    fun sendMessage(content: String) {
+        val threadId = activeThreadId ?: UUID.randomUUID().toString()
+        val currentMessages = _messages.value?.toMutableList() ?: mutableListOf()
+
+        // Create user message
+        val userMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = content,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            versionNumber = 0
+        )
+
+        // Create thread to track versions
+        val messageThread = messageThreads[threadId] ?: MessageThread(threadId).also {
+            messageThreads[threadId] = it
+        }
+
+
+        // If new message in existing chain
+        if (activeThreadId != null) {
+            // Add to the active chain
+            val chainId = messageThread.activeChainId
+            if (chainId != null) {
+                val chainMessage = userMessage.copy(chainId = chainId)
+                messageThread.addMessageToActiveChain(chainMessage)
+                
+                // Add message to the visible messages list
+                currentMessages.add(chainMessage)
+                _messages.value = currentMessages
+                Log.d(TAG, "Message added to the active/visible messages list: $currentMessages")
+            } else { 
+                // Create a new chain if needed
+                val newChainId = messageThread.createNewChain()
+                val chainMessage = userMessage.copy(chainId = newChainId)
+
+                // Add user message to the active/visible messages list
+                currentMessages.add(chainMessage)
+                _messages.value = currentMessages
+            }
+        } else {
+            // This is a new thread
+            messageThread.addVersion(userMessage)
+            activeThreadId = threadId
+
+            // Add user message to the visible messages list
+            currentMessages.add(userMessage)
+            _messages.value = currentMessages
+        }
+
+        // Send message to the server
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending message: $content")
+                val response = repository.sendMessage(content)
+                Log.d(TAG, "Received response: $response")
+          
+                // Create bot response message
+                val botResponse = createBotResponseMessage(response, threadId)
+
+                // Get current active thread
+                val thread = messageThreads[threadId]
+                if (thread != null) {
+                    if (thread.activeChainId != null) {
+                        // Add to active chain
+                        val chainBotResponse = botResponse.copy(chainId = thread.activeChainId)
+                        thread.addMessageToActiveChain(chainBotResponse)
+                        
+                        // Add bot response to visible messages
+                        val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                        updatedMessages.add(chainBotResponse)
+                        _messages.value = updatedMessages
+                        
+                    } else {
+                        // Update the current version with the bot response
+                        thread.updateCurrentVersion(botResponse = botResponse)
+                        
+                        // Add bot response to visible messages
+                        val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                        updatedMessages.add(botResponse)
+                        _messages.value = updatedMessages
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Error sending message", e)
+                
+                // Handle error
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId
+                )
+
+                val thread = messageThreads[threadId]
+                if (thread != null) {
+                    if (thread.activeChainId != null) {
+                        // Add to active chain
+                        val chainErrorMsg = errorMessage.copy(chainId = thread.activeChainId)
+                        thread.addMessageToActiveChain(chainErrorMsg)
+
+                        // Add error to visible messages
+                        val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                        updatedMessages.add(chainErrorMsg)
+                        _messages.value = updatedMessages
+                    } else {
+                        // Update the current version with the error response
+                        thread.updateCurrentVersion(botResponse = errorMessage)
+
+                        // Add error to visible messages
+                        val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                        updatedMessages.add(errorMessage)
+                        _messages.value = updatedMessages
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createBotResponseMessage(responseText: String, threadId: String): Message {
+        // Check for image url prefix
+        if (responseText.contains("!IMAGEURL!")) {
+            Log.d(TAG, "Found image URL prefix")
+            val parts = responseText.split("!IMAGEURL!")
+            val contentText = parts[0].trim()
+            val imageUrl = parts[1].trim()
+
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageUrl = imageUrl,
+                threadId = threadId
+            )
+        }
+        // Check for image data prefix
+        else if (responseText.contains("!IMAGEDATA!")) {
+            Log.d(TAG, "Found image data prefix")
+            val parts = responseText.split("!IMAGEDATA!")
+            val contentText = parts[0].trim()
+            val imageData = parts[1].trim()
+
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageData = imageData,
+                threadId = threadId
+            )
+        }
+        //Regular text response
+        else {
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = responseText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                threadId = threadId
+            )
+        }
+    }
+
+    fun logAllThreads() {
+        messageThreads.forEach { (threadId, thread) ->
+            Log.d(TAG, "Thread $threadId has ${thread.versions.size} versions")
+            thread.logVersions(TAG)
+
+            Log.d(TAG, "Thread $threadId has ${thread.chains.size} chains")
+            thread.chains.forEach { (chainId, chain) ->
+                Log.d(TAG, " Chain $chainId from version ${chain.fromVersionIndex} has ${chain.messages.size} messages")
+            }
+        }
+    }
+
+    fun editMessage(messageId: String, newContent: String) {
+        Log.d(TAG, "Starting edit for message $messageId")
+        val currentMessages = _messages.value?.toMutableList() ?: return
+
+        // Find the message to edit
+        val messageIndex = currentMessages.indexOfFirst { it.id == messageId }
+        if (messageIndex == -1) {
+            Log.e(TAG, "Could not find message with ID: $messageId")
+            return
+        }
+
+        val messageToEdit = currentMessages[messageIndex]
+        val threadId = messageToEdit.threadId
+
+        if (threadId == null) {
+            Log.e(TAG, "Message has no thread ID")
+            return
+        }
+
+        Log.d(TAG, "Editing message in thread $threadId")
+    
+        // Track active thread for navigation
+        activeThreadId = threadId
+
+        // Get the thread or create one if it doesn't exist
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "Creating new thread for $threadId")
+            val newThread = MessageThread(threadId)
+            messageThreads[threadId] = newThread
+            newThread
+        }
+
+        Log.d(TAG, "Current thread state before edit: " +
+              "versions=${thread.versions.size}, " +
+              "currentIndex=${thread.currentVersionIndex}")
+
+        // Create a new message version
+        val editedUserMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = newContent,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            hasVersionHistory = true,
+            versionNumber = thread.versions.size
+        )
+
+        Log.d(TAG, "Created new version with number ${thread.versions.size}")
+        markAllThreadVersionsWithHistory(threadId)        
+
+        // Add the new version to the thread
+        val newVersionIndex = thread.addVersion(editedUserMessage)
+        Log.d(TAG, "Added version at index $newVersionIndex. Total versions now: ${thread.versions.size}")
+
+        markAllThreadVersionsWithHistory(threadId)
+
+        // Create new chain for edited version
+        val newChainId = thread.createNewChain()
+        Log.d(TAG, "Created new chain $newChainId for edited message")
+
+
+        // Clear current message list to show only new chain
+        currentMessages.clear()
+
+        // Add only the edited message to the visible list
+        val chainMessages = editedUserMessage.copy(chainId = newChainId)
+        currentMessages.add(chainMessages)
+
+        // Update the UI 
+        _messages.value = currentMessages
+
+        // Fetch a new response for the edited message
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending edited message: $newContent")
+                val response = repository.sendMessage(newContent)
+                Log.d(TAG, "Received response for edited message: $response")
+
+                // Create the new bot response
+                val newBotResponse = createBotResponseMessage(response, threadId).copy(
+                    versionNumber = newVersionIndex,
+                    hasVersionHistory = true,
+                    chainId = newChainId
+                )
+
+                // Update the thread with the new bot response
+                thread.updateCurrentVersion(botResponse = newBotResponse)
+                thread.addMessageToActiveChain(newBotResponse)
+
+                // Add the new bot response to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(newBotResponse)
+                _messages.value = updatedMessages
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending edited message", e)
+
+
+                // Handle error
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId,
+                    versionNumber = newVersionIndex,
+                    hasVersionHistory = true,
+                    chainId = newChainId
+                )
+
+                // Update the thread with the error response
+                thread.updateCurrentVersion(botResponse = errorMessage)
+                thread.addMessageToActiveChain(errorMessage)
+
+                // Add error to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(errorMessage)
+                _messages.value = updatedMessages
+            }
+        }
+    }
+
+
+    /**
+     * Navigate to the previous version of a message thread
+     */
+    fun navigateToPreviousVersion(threadId: String): Boolean {
+        Log.d(TAG, "Attempting to navigate to previous version in thread $threadId")
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "Thread not found")
+            return false
+        }
+
+        if (!thread.hasPreviousVersion()) {
+            Log.d(TAG, "No previous version available")
+            return false
+        }
+
+        val previousVersion = thread.moveToPreviousVersion() ?: return false
+
+        // Get the chain related to this thread
+        val chainId = thread.activeChainId
+
+        if (chainId != null) {
+            // Get messages from this chain
+            val chainMessages = thread.chains[chainId]?.messages ?: emptyList()
+
+            // Replace the current messages with ones from this chain
+            _messages.value = chainMessages
+            return true
+        } else {
+            Log.d(TAG, "No chain found for previous version")
+            return false
+        }
+    }
+
+    /**
+     * Navigate to the next version of a message thread
+     */
+    fun navigateToNextVersion(threadId: String): Boolean {
+        Log.d(TAG, "Attempting to navigate to next version in thread $threadId")
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "No next thread found")
+            return false
+        }
+
+        if (!thread.hasNextVersion()) {
+            Log.d(TAG, "No next version available")
+            return false
+        }
+ 
+        val nextVersion = thread.moveToNextVersion() ?: return false
+        // Get the chain related to this version
+        val chainId = thread.activeChainId
+
+        if (chainId != null) {
+            // Get messages from this chain
+            val chainMessages = thread.chains[chainId]?.messages ?: emptyList()
+
+            // Replace the current messages with the ones from this chain
+            _messages.value = chainMessages
+            return true
+ 
+        } else {
+            Log.d(TAG, "No chain found for next version")
+            return false
+        }
+    }
+
+    private fun markAllThreadVersionsWithHistory(threadId: String) {
+        val thread = messageThreads[threadId] ?: return
+    
+        // Only mark with history if there's more than one version
+        if (thread.versions.size <= 1) return
+    
+        Log.d(TAG, "Marking all ${thread.versions.size} versions in thread $threadId with hasVersionHistory")
+    
+        // Update all versions with hasVersionHistory flag
+        for (i in thread.versions.indices) {
+            val version = thread.versions[i]
+        
+            // Update user message
+            val updatedUserMessage = version.userMessage.copy(hasVersionHistory = true)
+        
+            // Update bot response if it exists
+            val updatedBotResponse = version.botResponse?.copy(hasVersionHistory = true)
+        
+            // Replace the version
+            thread.versions[i] = MessageVersion(updatedUserMessage, updatedBotResponse, version.timestamp)
+        }
+    }
+
+    /**
+     * Updates visible messages to display the specified version's chain
+     */
+    fun switchToChain(threadId: String, chainId: String): Boolean { 
+        val thread = messageThreads[threadId] ?: return false
+
+        // Activate the requested chain
+        val chainMessages = thread.activateChain(chainId) ?: return false
+
+        // Update the UI with the messages from this chain
+        _messages.value = chainMessages
+        return true
+    }
+
+    fun getMessageThread(threadId: String): MessageThread? {
+        return messageThreads[threadId]
+    }
+
+    fun getMessageThreads(): Map<String, MessageThread> {
+        return messageThreads
+    }
+}
+
+MessageChain.kt
+package com.example.lilotest.data.model
+
+import java.util.Date
+
+/**
+ * Represents a message chain that contains a sequence of messages
+ * created after a specific version of a user message
+ */
+data class MessageChain(
+    val chainId: String,
+    val fromVersionIndex: Int,
+    val messages: MutableList<Message> = mutableListOf(),
+    val timestamp: Date = Date()
+)
+
+/**
+ * Extension to MessageThread to support chains
+ */
+// Add these properties and methods to your MessageThread class
+/*
+    // Map of chainId to MessageChain
+    val chains: MutableMap<String, MessageChain> = mutableMapOf()
+    
+    // Current active chain that's being displayed
+    var activeChainId: String? = null
+    
+    /**
+     * Creates a new chain from the current version
+     */
+    fun createNewChain(): String {
+        val chainId = UUID.randomUUID().toString()
+        val currentVersion = getCurrentVersion() ?: return chainId
+        
+        // Create chain starting from current version
+        val chain = MessageChain(
+            chainId = chainId,
+            fromVersionIndex = currentVersionIndex
+        )
+        
+        // Add the user message from the current version
+        chain.messages.add(currentVersion.userMessage.copy(chainId = chainId))
+        
+        // Add the bot response if available
+        currentVersion.botResponse?.let { 
+            chain.messages.add(it.copy(chainId = chainId)) 
+        }
+        
+        // Store the chain
+        chains[chainId] = chain
+        
+        // Set as active chain
+        activeChainId = chainId
+        
+        return chainId
+    }
+    
+    /**
+     * Adds a message to the currently active chain
+     */
+    fun addMessageToActiveChain(message: Message): Boolean {
+        val chainId = activeChainId ?: return false
+        val chain = chains[chainId] ?: return false
+        
+        chain.messages.add(message.copy(chainId = chainId))
+        return true
+    }
+    
+    /**
+     * Sets the active chain and returns its messages
+     */
+    fun activateChain(chainId: String): List<Message>? {
+        if (!chains.containsKey(chainId)) return null
+        
+        activeChainId = chainId
+        return chains[chainId]?.messages
+    }
+    
+    /**
+     * Gets all chains that started from a specific version
+     */
+    fun getChainsForVersion(versionIndex: Int): List<MessageChain> {
+        return chains.values.filter { it.fromVersionIndex == versionIndex }
+    }
+*/
+
+
+MessageVersion.t
+package com.example.lilotest.data.model
+
+import android.util.Log
+import java.util.Date
+import java.util.UUID
+
+
+/**
+ * Represents a single version of a message with its response
+ */
+data class MessageVersion(
+    val userMessage: Message,
+    var botResponse: Message?,
+    val timestamp: Date = Date()
+)
+
+/**
+ * Represents a message thread with multiple versions and chains
+ */
+data class MessageThread(
+    val threadId: String,  // Unique identifier for the thread
+    val versions: MutableList<MessageVersion> = mutableListOf(),
+    var currentVersionIndex: Int = 0,  // Index of the current active version
+    
+    // Map of chainId to MessageChain
+    val chains: MutableMap<String, MessageChain> = mutableMapOf(),
+    
+    // Current active chain that's being displayed
+    var activeChainId: String? = null
+) {
+    fun addVersion(userMessage: Message, botResponse: Message? = null): Int {
+        val newVersion = MessageVersion(userMessage, botResponse)
+        versions.add(newVersion)
+        currentVersionIndex = versions.size - 1
+        
+        // For the first version, create an initial chain
+        if (versions.size == 1) {
+            createNewChain()
+        }
+        
+        return currentVersionIndex
+    }
+    
+    fun updateCurrentVersion(userMessage: Message? = null, botResponse: Message? = null) {
+        if (versions.isEmpty() || currentVersionIndex < 0 || currentVersionIndex >= versions.size) {
+            return
+        }
+        val currentVersion = versions[currentVersionIndex]
+        
+        userMessage?.let {
+            versions[currentVersionIndex] = currentVersion.copy(userMessage = it)
+        }
+        
+        botResponse?.let {
+            versions[currentVersionIndex] = versions[currentVersionIndex].copy(botResponse = it)
+            
+            // Also update in active chain if it exists
+            activeChainId?.let { chainId ->
+                val chain = chains[chainId]
+                chain?.let { activeChain ->
+                    if (activeChain.messages.size >= 2) {
+                        // Update bot response in the chain (typically the second message)
+                        val updatedMessages = activeChain.messages.toMutableList()
+                        for (i in 1 until updatedMessages.size) {
+                            if (updatedMessages[i].type == MessageType.BOT) {
+                                updatedMessages[i] = botResponse.copy(chainId = chainId)
+                                break
+                            }
+                        }
+                        activeChain.messages.clear()
+                        activeChain.messages.addAll(updatedMessages)
+                    } else {
+                        // Add bot response to chain
+                        activeChain.messages.add(botResponse.copy(chainId = chainId))
+                    }
+                }
+            }
+        }
+    }
+    
+    fun getCurrentVersion(): MessageVersion? {
+        return if (versions.isNotEmpty() && currentVersionIndex >= 0 && currentVersionIndex < versions.size) {
+            versions[currentVersionIndex]
+        } else {
+            null
+        }
+    }
+    
+    fun hasNextVersion(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun hasPreviousVersion(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun moveToNextVersion(): MessageVersion? {
+        if (hasNextVersion()) {
+            currentVersionIndex++
+            val nextVersion = getCurrentVersion()
+            
+            // When moving to next version, check if this version has chains
+            val chainsForVersion = getChainsForVersion(currentVersionIndex)
+            if (chainsForVersion.isNotEmpty()) {
+                // Use the most recent chain
+                activeChainId = chainsForVersion.maxByOrNull { it.timestamp }?.chainId
+            } else {
+                // Create a new chain for this version if none exists
+                createNewChain()
+            }
+            
+            return nextVersion
+        }
+        return null
+    }
+    
+    fun moveToPreviousVersion(): MessageVersion? {
+        if (hasPreviousVersion()) {
+            currentVersionIndex--
+            val prevVersion = getCurrentVersion()
+            
+            // When moving to previous version, check if this version has chains
+            val chainsForVersion = getChainsForVersion(currentVersionIndex)
+            if (chainsForVersion.isNotEmpty()) {
+                // Use the most recent chain
+                activeChainId = chainsForVersion.maxByOrNull { it.timestamp }?.chainId
+            } else {
+                // Create a new chain for this version if none exists
+                createNewChain()
+            }
+            
+            return prevVersion
+        }
+        return null
+    }
+
+    fun logVersions(tag: String) {
+        versions.forEachIndexed { index, version ->
+            val currentMarker = if (index == currentVersionIndex) " (CURRENT)" else ""
+            val userContent = version.userMessage.content?.take(20) ?: "null"
+            val botContent = version.botResponse?.content?.take(20) ?: "null"
+            Log.d(tag, "Version $index$currentMarker - User: $userContent..., Bot: $botContent...")
+        }
+    }
+
+    fun canNavigateBack(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun canNavigateForward(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun getCurrentVersionNumber(): Int {
+        return currentVersionIndex + 1
+    }
+    
+    fun getTotalVersions(): Int {
+        return versions.size
+    }
+    
+    /**
+     * Creates a new chain from the current version
+     */
+    fun createNewChain(): String {
+        val chainId = UUID.randomUUID().toString()
+        val currentVersion = getCurrentVersion() ?: return chainId
+        
+        // Create chain starting from current version
+        val chain = MessageChain(
+            chainId = chainId,
+            fromVersionIndex = currentVersionIndex
+        )
+        
+        // Add the user message from the current version
+        chain.messages.add(currentVersion.userMessage.copy(chainId = chainId))
+        
+        // Add the bot response if available
+        currentVersion.botResponse?.let { 
+            chain.messages.add(it.copy(chainId = chainId)) 
+        }
+        
+        // Store the chain
+        chains[chainId] = chain
+        
+        // Set as active chain
+        activeChainId = chainId
+        
+        return chainId
+    }
+    
+    /**
+     * Adds a message to the currently active chain
+     */
+    fun addMessageToActiveChain(message: Message): Boolean {
+        val chainId = activeChainId ?: return false
+        val chain = chains[chainId] ?: return false
+        
+        chain.messages.add(message.copy(chainId = chainId))
+        return true
+    }
+    
+    /**
+     * Sets the active chain and returns its messages
+     */
+    fun activateChain(chainId: String): List<Message>? {
+        if (!chains.containsKey(chainId)) return null
+        
+        activeChainId = chainId
+        return chains[chainId]?.messages
+    }
+    
+    /**
+     * Gets all chains that started from a specific version
+     */
+    fun getChainsForVersion(versionIndex: Int): List<MessageChain> {
+        return chains.values.filter { it.fromVersionIndex == versionIndex }
+    }
+}
+
+
+
+There should be a logic for message chains which interactively displays only the chain of messages which user is currently viewing. The chains are based of off edited messages. Each message edit creates a new chain. Even if message in the middle of message history is edited there should be a new chain created and the subsequent messages from the edited message onwards should not display until user adds new messages after the edited message or navigates back to the previous chain (before edit or previous edit) with prev arrow button.
+
+there should be a chain succession tracking to track the chains ordered by time of creation.
+
+use case example:
+1. user sends message: hello   - Chain 1 is initialized
+2. user sends another message: hello message 2  -  chain 1 continues
+3. user presses edit message button on the first message (hello) and sends edited message: edited Hello  - 
+4. user sends another message: hello message 3  -  chain 2 continues after the edited message
+5. user decides to edit the step 1 hello message. This breaks the current chain - chain 3 is created where only the first message (which now edited) displays.
+6. user navigates back to unedited first message from prev arrow button. Now chain 2 is reinitialized and the messages sent through chain 2 display. 
+
+
+The current thread and edit logs should be preserved and MessageThreadLogger used for extra logging. 
+
+
+The current logic 
+
+ChatFragment.kt
+package com.example.lilotest.ui.chat
+import android.util.Log
+import android.os.Bundle
+import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.lilotest.R
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.ui.settings.SettingsBottomSheetFragment
+import com.example.lilotest.ui.theme.ThemeManager
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+
+class ChatFragment : Fragment(), SettingsBottomSheetFragment.ThemeChangeListener, 
+                     SettingsBottomSheetFragment.AutoScrollChangeListener {
+    lateinit var viewModel: ChatViewModel
+    private lateinit var messageAdapter: MessageAdapter
+    private lateinit var messageInput: TextInputEditText
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var themeManager: ThemeManager
+    private var autoScrollEnabled = true
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the updated layout with settings button
+        return inflater.inflate(R.layout.fragment_chat_with_settings, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Initialize Theme Manager
+        themeManager = ThemeManager(requireContext())
+        autoScrollEnabled = themeManager.isAutoScrollEnabled()
+
+        val topBar = view.findViewById<View>(R.id.top_bar)
+
+        themeManager.styleTopBar(topBar)
+
+        // Initialize ViewModel
+        viewModel = ViewModelProvider(this)[ChatViewModel::class.java]
+
+        // Setup RecyclerView
+        recyclerView = view.findViewById(R.id.messages_recycler_view)
+        recyclerView.layoutManager = LinearLayoutManager(context)
+
+        val viewHolderFactory = MessageViewHolderFactory(requireContext())
+
+        messageAdapter = MessageAdapter(viewHolderFactory)
+
+        recyclerView.adapter = messageAdapter
+        messageAdapter.setChatViewModel(viewModel)
+
+        messageAdapter.setEditMessageListener(object : MessageAdapter.EditMessageListener {
+            override fun onMessageEdited(messageId: String, newContent: String) {
+                viewModel.editMessage(messageId, newContent)
+            }
+        })
+
+        messageAdapter.setVersionNavigationListener(object : MessageAdapter.MessageVersionNavigationListener {
+            override fun onPreviousVersion(threadId: String) {
+                viewModel.navigateToPreviousVersion(threadId)
+            }
+            override fun onNextVersion(threadId: String) {
+                viewModel.navigateToNextVersion(threadId)
+            }
+        })
+
+        // Setup message input
+        messageInput = view.findViewById(R.id.message_input)
+        messageInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEND ||
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                sendMessage()
+                return@setOnEditorActionListener true
+            }
+            false
+        }
+
+        view.findViewById<View>(R.id.send_button).setOnClickListener {
+            sendMessage()
+        }
+
+        // Setup settings button
+        val settingsButton = view.findViewById<ImageButton>(R.id.settings_button)
+        settingsButton.setImageResource(getSettingsIconForCurrentTheme())
+        settingsButton.setOnClickListener {
+            showSettingsModal()
+        }
+
+        // Observe messages from ViewModel
+        viewModel.messages.observe(viewLifecycleOwner) { messages ->
+            messageAdapter.submitList(messages)
+            
+            // Auto-scroll to bottom if enabled
+            if (autoScrollEnabled && messages.isNotEmpty()) {
+                recyclerView.post {
+                    recyclerView.smoothScrollToPosition(messages.size - 1)
+                }
+            }
+        }
+
+        // Apply current theme
+        applyCurrentTheme()
+    }
+
+    private fun sendMessage() {
+        val messageText = messageInput.text.toString().trim()
+        if (messageText.isNotEmpty()) {
+            viewModel.sendMessage(messageText)
+            messageInput.text?.clear()
+            
+            // Always scroll to bottom when sending a message
+            recyclerView.post {
+                recyclerView.smoothScrollToPosition((recyclerView.adapter?.itemCount ?: 1) - 1)
+            }
+        }
+    }
+
+    private fun showSettingsModal() {
+        val settingsBottomSheet = SettingsBottomSheetFragment.newInstance()
+        settingsBottomSheet.setThemeChangeListener(this)
+        settingsBottomSheet.setAutoScrollChangeListener(this)
+        settingsBottomSheet.show(parentFragmentManager, SettingsBottomSheetFragment.TAG)
+    }
+
+    override fun onThemeChanged(theme: String) {
+        // Apply new theme
+        applyCurrentTheme()
+
+
+        view?.findViewById<View>(R.id.top_bar)?.let {
+            themeManager.styleTopBar(it)
+        }
+
+
+        // Update settings button icon
+        view?.findViewById<ImageButton>(R.id.settings_button)?.let {
+            it.setImageResource(getSettingsIconForCurrentTheme())
+        }
+        messageAdapter.notifyThemeChanged()
+    }
+
+    override fun onAutoScrollChanged(enabled: Boolean) {
+        autoScrollEnabled = enabled
+        
+        // If enabled and turned on, scroll to the bottom immediately
+        if (autoScrollEnabled && recyclerView.adapter != null && recyclerView.adapter!!.itemCount > 0) {
+            recyclerView.smoothScrollToPosition(recyclerView.adapter!!.itemCount - 1)
+        }
+    }
+
+    private fun applyCurrentTheme() {
+        // We'll apply the theme to the activity which affects all fragments
+        activity?.let {
+            themeManager.applyTheme(it)
+        }
+    }
+
+    private fun getSettingsIconForCurrentTheme(): Int {
+        val currentTheme = themeManager.getCurrentTheme()
+        return when (currentTheme) {
+            ThemeManager.THEME_LIGHT -> R.drawable.light_gear_light
+            ThemeManager.THEME_DARK -> R.drawable.dark_gear_light
+            ThemeManager.THEME_BROWN -> R.drawable.brown_gear_light
+            ThemeManager.THEME_YELLOW -> R.drawable.yellow_gear_light
+            ThemeManager.THEME_RED -> R.drawable.red_gear_light
+            ThemeManager.THEME_GREEN -> R.drawable.green_gear_light
+            ThemeManager.THEME_PURPLE -> R.drawable.purple_gear_light
+            ThemeManager.THEME_CYAN -> R.drawable.cyan_gear_light
+            else -> R.drawable.light_gear_light
+        }
+    }
+    //fun getViewModel(): ChatViewModel {
+        //return viewModel
+    //}
+}
+
+
+MessageAdapter.kt
+package com.example.lilotest.ui.chat
+
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.text.style.TypefaceSpan
+import android.util.Base64
+import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
+import com.example.lilotest.R
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageThread
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.ui.theme.ThemeManager
+import io.github.kbiakov.codeview.CodeView
+import io.github.kbiakov.codeview.adapters.Options
+import io.github.kbiakov.codeview.highlight.ColorTheme
+import java.util.regex.Pattern
+
+class MessageAdapter( 
+    private val viewHolderFactory: MessageViewHolderFactory
+) : ListAdapter<Message, MessageViewHolder>(MessageDiffCallback()) {
+
+    @Deprecated("Use the constructor with a MessageViewHolderFactory parameter")
+    constructor() : this(throw IllegalStateException("MessageAdapter requires a viewHolderFactory"))
+    private var chatViewModel: ChatViewModel? = null
+    private val TAG = "MessageAdapter"
+    private val THEME_TAG = "ThemeDebug"
+    private var themeManager: ThemeManager? = null
+
+    private var versionNavigationListener: MessageVersionNavigationListener? = null
+
+    fun setChatViewModel(viewModel: ChatViewModel) {
+        this.chatViewModel = viewModel
+    }
+
+    fun setVersionNavigationListener(listener: MessageVersionNavigationListener) {
+        this.versionNavigationListener = listener
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
+
+        // Initialize theme manager if not already done
+        if (themeManager == null) {
+            themeManager = ThemeManager(parent.context)
+        }
+        
+        // Use the factory to create the ViewHolder
+        return viewHolderFactory.create(parent, viewType)
+    }
+
+    interface MessageVersionNavigationListener {
+        fun onPreviousVersion(threadId: String)
+        fun onNextVersion(threadId: String)
+    }
+
+    interface EditMessageListener {
+        fun onMessageEdited(messageId: String, newContent: String)
+    }
+
+    private var editMessageListener: EditMessageListener? = null
+
+    fun setEditMessageListener(listener: EditMessageListener) {
+        this.editMessageListener = listener
+    }
+
+    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
+        val message = getItem(position)
+
+        try {
+            // Initialize theme manager if not already done
+            if (themeManager == null) {
+                themeManager = ThemeManager(holder.itemView.context)
+            }
+            
+            // Use the factory to update the ViewHolder styling
+            val viewType = getItemViewType(position)
+            viewHolderFactory.updateStyle(holder, viewType)
+
+            // Get the message content safely
+            val content = message.content ?: ""
+
+            Log.d(TAG, "Processing message ID ${message.id}, content length: ${content.length}")
+
+            // Check for code blocks or tables
+            val hasSpecialBlocks = content.contains("```") || containsMarkdownTable(content)
+
+            if (hasSpecialBlocks) {
+                // Process content with special blocks
+                processMessageWithSpecialBlocks(content, holder, message)
+            } else {
+                // Use text response for other parts
+                val formattedText = formatTextWithoutCodeBlocks(content, holder.itemView.context)
+
+                // Make sure regular text view has content
+                holder.getContentTextView()?.apply {
+                    visibility = View.VISIBLE
+                    text = formattedText
+                }
+
+                // Set timestamp
+                holder.setTimestamp(message.timestamp)
+            }
+
+            if (viewType == MessageViewHolderFactory.VIEW_TYPE_USER) {
+                val threadId = message.threadId
+
+                val editButton = holder.itemView.findViewById<ImageButton>(R.id.edit_message_button)
+                val nextButton = holder.itemView.findViewById<ImageButton>(R.id.next_version_button)
+                val prevButton = holder.itemView.findViewById<ImageButton>(R.id.prev_version_button)
+
+                // Get the user message text color from ThemeManager
+                val userMessageTextColor = themeManager?.getThemeColor(ThemeManager.ThemeColorType.USER_MESSAGE_TEXT) 
+                    ?: ContextCompat.getColor(holder.itemView.context, R.color.light_user_msg_text)
+                
+                // Set the button colors to match the user message text color
+                prevButton?.setColorFilter(userMessageTextColor)
+                nextButton?.setColorFilter(userMessageTextColor)
+                editButton?.setColorFilter(userMessageTextColor)
+
+                // Set click listener to show edit dialog
+                editButton.setOnClickListener {
+                    if (threadId != null) {
+                        showEditMessageDialog(holder.itemView.context, message)
+                    }
+                }
+           
+                // Default state - hide navigation buttons
+                prevButton?.visibility = View.GONE
+                nextButton?.visibility = View.GONE
+
+                // Check thread information for version history
+                if (threadId != null) {
+                    Log.d(TAG, "Checking thread $threadId for version history")
+                    //val thread = getMessageThreadInfo(threadId, holder.itemView.context)
+                    val thread = getMessageThreadInfo(threadId)
+
+                    if (thread != null) {
+                        Log.d(TAG, "Thread found with ${thread.versions.size} versions. Current index: ${thread.currentVersionIndex}")
+       
+                        // Log all versions for debugging
+                        thread.versions.forEachIndexed { index, version ->
+                            Log.d(TAG, "Version $index: UserMsg=${version.userMessage.content?.take(20)}..., " +
+                                "BotMsg=${version.botResponse?.content?.take(20)}..., " +
+                                "Current=${index == thread.currentVersionIndex}")
+                        }
+
+                        // Show navigation buttons if we have multiple versions
+                        if (thread.versions.size > 1) {
+                            prevButton?.visibility = View.VISIBLE
+                            nextButton?.visibility = View.VISIBLE
+
+                            // Enable previous button if not at first version
+                            prevButton?.isEnabled = thread.currentVersionIndex > 0
+                            prevButton?.alpha = if (thread.currentVersionIndex > 0) 1.0f else 0.5f
+                        
+                            // Enable next button if not at last version
+                            nextButton?.isEnabled = thread.currentVersionIndex < thread.versions.size - 1
+                            nextButton?.alpha = if (thread.currentVersionIndex < thread.versions.size - 1) 1.0f else 0.5f
+
+                            // Set click listeners
+                            prevButton?.setOnClickListener {
+                                versionNavigationListener?.onPreviousVersion(threadId)
+                            }
+                
+                            nextButton?.setOnClickListener {
+                                versionNavigationListener?.onNextVersion(threadId)
+                            }
+                        }
+                        
+                        Log.d(TAG, "Navigation buttons state: " +
+                            "Prev enabled=${prevButton?.isEnabled}, " +
+                            "Next enabled=${nextButton?.isEnabled}")
+                    } else {
+                        Log.d(TAG, "No thread found for ID $threadId")
+                    }
+                }
+            } else {
+                // Hide navigation buttons for non-user messages
+                val prevButton = holder.itemView.findViewById<ImageButton>(R.id.prev_version_button)
+                val nextButton = holder.itemView.findViewById<ImageButton>(R.id.next_version_button)
+                
+                prevButton?.visibility = View.GONE
+                nextButton?.visibility = View.GONE
+            }
+
+            // Process images
+            if (message.containsImage) {
+                val imageView = holder.itemView.findViewById<ImageView>(R.id.message_image)
+                val progressBar = holder.itemView.findViewById<ProgressBar>(R.id.image_loading_progress)
+
+                if (imageView != null && progressBar != null) {
+                    Log.d(TAG, "Loading image for message: ${message.id}")
+                    progressBar.visibility = View.VISIBLE
+
+                    if (!message.imageUrl.isNullOrEmpty()) {
+                        Log.d(TAG, "Loading from URL: ${message.imageUrl}")
+                        // Loading from URL
+                        Glide.with(holder.itemView.context)
+                            .load(message.imageUrl)
+                            .apply(RequestOptions()
+                                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                .error(R.drawable.ic_error_placeholder))
+                            .into(imageView)
+                            .clearOnDetach()
+
+                        progressBar.visibility = View.GONE
+
+                    } else if (!message.imageData.isNullOrEmpty()) {
+                        try {
+                            Log.d(TAG, "Loading from base 64 data")
+                            if (message.imageData.startsWith("data:image")) {
+                                // Parse image data
+                                val base64Data = message.imageData.substring(message.imageData.indexOf(",") + 1)
+                                val imageBytes = Base64.decode(base64Data, Base64.DEFAULT)
+
+                                Glide.with(holder.itemView.context)
+                                    .load(imageBytes)
+                                    .apply(RequestOptions()
+                                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                        .error(R.drawable.ic_error_placeholder))
+                                    .into(imageView)
+                                    .clearOnDetach()
+                            } else {
+                                // Try decoding directly
+                                val imageBytes = Base64.decode(message.imageData, Base64.DEFAULT)
+                                Glide.with(holder.itemView.context)
+                                    .load(imageBytes)
+                                    .apply(RequestOptions()
+                                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                        .error(R.drawable.ic_error_placeholder))
+                                    .into(imageView)
+                                    .clearOnDetach()
+                            }
+                            progressBar.visibility = View.GONE
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error loading base64 image: ${e.message}")
+                            progressBar.visibility = View.GONE
+                        }
+                    } else {
+                        progressBar.visibility = View.GONE
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error binding view holder: ${e.message}")
+            e.printStackTrace()
+
+            // Fallback to text binding
+            holder.getContentTextView()?.apply {
+                visibility = View.VISIBLE
+                text = message.content ?: ""
+            }
+            holder.setTimestamp(message.timestamp)
+        }
+    }
+
+
+    private fun getMessageThreadInfo(threadId: String): MessageThread? {
+        return chatViewModel?.getMessageThread(threadId)
+    }
+
+    private fun showEditMessageDialog(context: Context, message: Message) {
+        // Initialize theme manager if not already done
+        if (themeManager == null) {
+            themeManager = ThemeManager(context)
+        }
+
+        val modalBackground = themeManager?.getThemeColor(ThemeManager.ThemeColorType.MODAL_BACKGROUND) ?: Color.WHITE
+        val textColor = themeManager?.getThemeColor(ThemeManager.ThemeColorType.TEXT) ?: Color.BLACK
+        val modalBorder = themeManager?.getThemeColor(ThemeManager.ThemeColorType.MODAL_BORDER) ?: Color.GRAY
+        val userMsgBg = themeManager?.getThemeColor(ThemeManager.ThemeColorType.USER_MESSAGE_BACKGROUND) ?: Color.BLUE
+        val userMsgText = themeManager?.getThemeColor(ThemeManager.ThemeColorType.USER_MESSAGE_TEXT) ?: Color.WHITE
+        
+        //Create dialog view
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_edit_message, null)
+
+        // Get views from dialog
+        val titleTextView = dialogView.findViewById<TextView>(R.id.dialog_title)
+        val editInput = dialogView.findViewById<EditText>(R.id.edit_message_input)
+        val cancelButton = dialogView.findViewById<Button>(R.id.cancel_button)
+        val sendButton = dialogView.findViewById<Button>(R.id.send_button)
+
+        // Style the dialog based on theme
+        dialogView.setBackgroundColor(modalBackground)
+        titleTextView.setTextColor(textColor)
+        
+        // Create a darker background for the input field
+        val editTextBackground = editInput.background as GradientDrawable
+        editTextBackground.setColor(ColorUtils.setAlphaComponent(modalBorder, 50))
+        editTextBackground.setStroke(1, modalBorder)
+        
+        // Set text color for input field
+        editInput.setTextColor(textColor)
+        editInput.setHintTextColor(ColorUtils.setAlphaComponent(textColor, 128))
+        
+        // Style buttons
+        cancelButton.setTextColor(textColor)
+        sendButton.setBackgroundColor(userMsgBg)
+        sendButton.setTextColor(userMsgText)
+        
+        // Pre-fill with current message text
+        editInput.setText(message.content)
+        
+        // Build the dialog
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+        
+        // Set window background to be semi-transparent
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        
+        // Setup button listeners
+        cancelButton.setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        sendButton.setOnClickListener {
+            val editedText = editInput.text.toString().trim()
+            if (editedText.isNotEmpty() && editedText != message.content) {
+                // Call the callback to handle the edited message
+                editMessageListener?.onMessageEdited(message.id, editedText)
+            }
+            dialog.dismiss()
+        }
+        
+        // Show the dialog
+        dialog.show()
+    }
+
+    // Also add this extension function to find the activity from context
+    private fun Context.findActivity(): AppCompatActivity? {
+        var context = this
+        while (context is ContextWrapper) {
+            if (context is AppCompatActivity) {
+                return context
+            }
+            context = context.baseContext
+        }
+        return null
+    }
+
+    // Helper data classes for formatting
+    private enum class FormattingType {
+        HEADER, BOLD, ITALIC, CODE
+    }
+
+    private data class FormattingRange(
+        val markerStart: Int,  // Start of the opening marker
+        val markerEnd: Int,    // End of the opening marker (start of content)
+        val contentEnd: Int,   // End of the content (start of closing marker)
+        val type: FormattingType,
+        val level: Int = 0     // Used for headers (1, 2, 3)
+    )
+
+    private data class FormattedSpan(
+        val start: Int,
+        val end: Int,
+        val type: FormattingType,
+        val level: Int = 0
+    )
+
+    // Data class to store block info (for both code and tables)
+    private data class CodeBlock(
+        val language: String,
+        val code: String,
+        val startPosition: Int,
+        val endPosition: Int
+    )
+
+    // Helper method to darken a color for the header
+    private fun darkenColor(color: Int): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        hsv[2] *= 0.8f // Reduce brightness to 80%
+        return Color.HSVToColor(hsv)
+    }
+
+    
+    private class MessageDiffCallback : DiffUtil.ItemCallback<Message>() {
+        override fun areItemsTheSame(oldItem: Message, newItem: Message): Boolean {
+            return oldItem.id == newItem.id
+        }
+        override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
+            return oldItem == newItem
+        }
+    }
+}
+ 
+
+
+the ChatViewModel.kt
+package com.example.lilotest.ui.chat
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageThread
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.data.model.MessageVersion
+import com.example.lilotest.data.remote.MessageRepository
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.UUID
+import android.util.Log
+
+class ChatViewModel : ViewModel() {
+
+    private val TAG = "ChatViewModel"
+    private val repository = MessageRepository()
+
+    private val _messages = MutableLiveData<List<Message>>(emptyList())
+    val messages: LiveData<List<Message>> = _messages
+
+    // Store message threads for version history
+    private val messageThreads = mutableMapOf<String, MessageThread>()
+
+    // Track the active thread for navigation operations
+    private var activeThreadId: String? = null
+
+    fun sendMessage(content: String) {
+        val threadId = UUID.randomUUID().toString()
+        val currentMessages = _messages.value?.toMutableList() ?: mutableListOf()
+
+        // Create user message
+        val userMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = content,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            versionNumber = 0
+        )
+
+        // Create thread to track versions
+        val messageThread = MessageThread(threadId)
+        messageThread.addVersion(userMessage)
+        messageThreads[threadId] = messageThread
+
+        // Add user message to the visible messages list
+        currentMessages.add(userMessage)
+        _messages.value = currentMessages
+
+        // Send message to the server
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending message: $content")
+                val response = repository.sendMessage(content)
+                Log.d(TAG, "Received response: $response")
+
+                // Create and add bot response to the thread
+                val botResponse = createBotResponseMessage(response, threadId)
+
+                // Update the thread with the bot response
+                messageThreads[threadId]?.updateCurrentVersion(botResponse = botResponse)
+
+                // Add bot response to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(botResponse)
+                _messages.value = updatedMessages
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending message", e)
+
+                // Handle error 
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId
+                )
+
+                // Update the thread with the error response
+                messageThreads[threadId]?.updateCurrentVersion(botResponse = errorMessage)
+
+                // Add error to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(errorMessage)
+                _messages.value = updatedMessages
+            }
+        }
+    }
+
+    private fun createBotResponseMessage(responseText: String, threadId: String): Message {
+        // Check for image url prefix
+        if (responseText.contains("!IMAGEURL!")) {
+            Log.d(TAG, "Found image URL prefix")
+            val parts = responseText.split("!IMAGEURL!")
+            val contentText = parts[0].trim()
+            val imageUrl = parts[1].trim()
+
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageUrl = imageUrl,
+                threadId = threadId
+            )
+        }
+        // Check for image data prefix
+        else if (responseText.contains("!IMAGEDATA!")) {
+            Log.d(TAG, "Found image data prefix")
+            val parts = responseText.split("!IMAGEDATA!")
+            val contentText = parts[0].trim()
+            val imageData = parts[1].trim()
+
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageData = imageData,
+                threadId = threadId
+            )
+        }
+        //Regular text response
+        else {
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = responseText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                threadId = threadId
+            )
+        }
+    }
+
+    fun logAllThreads() {
+        messageThreads.forEach { (threadId, thread) ->
+            Log.d(TAG, "Thread $threadId has ${thread.versions.size} versions")
+            thread.logVersions(TAG)
+        }
+    }
+
+    fun editMessage(messageId: String, newContent: String) {
+
+        Log.d(TAG, "Starting edit for message $messageId")
+        val currentMessages = _messages.value?.toMutableList() ?: return
+
+        // Find the message to edit
+        val messageIndex = currentMessages.indexOfFirst { it.id == messageId }
+        if (messageIndex == -1) {
+            Log.e(TAG, "Could not find message with ID: $messageId")
+            return
+        }
+
+        val messageToEdit = currentMessages[messageIndex]
+        val threadId = messageToEdit.threadId
+
+        if (threadId == null) {
+            Log.e(TAG, "Message has no thread ID")
+            return
+        }
+
+        Log.d(TAG, "Editing message in thread $threadId")
+    
+        // Track active thread for navigation
+        activeThreadId = threadId
+
+        // Get the thread or create one if it doesn't exist
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "Creating new thread for $threadId")
+            val newThread = MessageThread(threadId)
+            messageThreads[threadId] = newThread
+            newThread
+        }
+
+        Log.d(TAG, "Current thread state before edit: " +
+              "versions=${thread.versions.size}, " +
+              "currentIndex=${thread.currentVersionIndex}")
+
+        // Create a new message version
+        val editedUserMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = newContent,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            hasVersionHistory = true,
+            versionNumber = thread.versions.size
+        )
+
+        Log.d(TAG, "Created new version with number ${thread.versions.size}")
+        markAllThreadVersionsWithHistory(threadId)        
+
+        // Add the new version to the thread
+        val newVersionIndex = thread.addVersion(editedUserMessage)
+        Log.d(TAG, "Added version at index $newVersionIndex. Total versions now: ${thread.versions.size}")
+
+        markAllThreadVersionsWithHistory(threadId)
+
+        // Find any existing bot response to this user message
+        var botResponseIndex = -1
+        if (messageIndex + 1 < currentMessages.size && 
+            currentMessages[messageIndex + 1].type == MessageType.BOT &&
+            currentMessages[messageIndex + 1].threadId == threadId) {
+            botResponseIndex = messageIndex + 1
+        }
+
+        // Mark the previous version as not current
+        currentMessages[messageIndex] = currentMessages[messageIndex].copy(
+            isCurrentVersion = false
+        )
+
+        // If there's a bot response, mark it as not current too
+        if (botResponseIndex != -1) {
+            currentMessages[botResponseIndex] = currentMessages[botResponseIndex].copy(
+                isCurrentVersion = false
+            )
+        }
+
+        // Update the UI with the edited user message
+        currentMessages[messageIndex] = editedUserMessage
+
+        // If there was a bot response, temporarily hide it
+        if (botResponseIndex != -1) {
+            currentMessages.removeAt(botResponseIndex)
+        }
+
+        _messages.value = currentMessages
+
+        // Fetch a new response for the edited message
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending edited message: $newContent")
+                val response = repository.sendMessage(newContent)
+                Log.d(TAG, "Received response for edited message: $response")
+
+                // Get the current messages list
+                val updatedMessages = _messages.value?.toMutableList() ?: return@launch
+
+                // Find user message again, as the indices might have changed
+                val updatedUserMessageIndex = updatedMessages.indexOfFirst { it.id == editedUserMessage.id }
+                if (updatedUserMessageIndex == -1) {
+                    Log.e(TAG, "Edited user message no longer exists in the list")
+                    return@launch
+                }
+
+                // Create the new bot response
+                val newBotResponse = createBotResponseMessage(response, threadId).copy(
+                    versionNumber = newVersionIndex, 
+                    hasVersionHistory = true
+                )
+
+                // Update the thread with the new bot response
+                thread.updateCurrentVersion(botResponse = newBotResponse)
+
+                // Add the new bot response to visible messages
+                if (updatedUserMessageIndex + 1 < updatedMessages.size) {
+                    // Insert after user message
+                    updatedMessages.add(updatedUserMessageIndex + 1, newBotResponse)
+                } else {
+                    // Add to the end
+                    updatedMessages.add(newBotResponse)
+                }
+
+                _messages.value = updatedMessages
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending edited message", e)
+
+                // Handle error
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId,
+                    versionNumber = newVersionIndex,
+                    hasVersionHistory = true
+                )
+
+                // Update the thread with the error response
+                thread.updateCurrentVersion(botResponse = errorMessage)
+
+                // Add error to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: return@launch
+                val updatedUserMessageIndex = updatedMessages.indexOfFirst { it.id == editedUserMessage.id }
+
+                if (updatedUserMessageIndex != -1) {
+                    if (updatedUserMessageIndex + 1 < updatedMessages.size) {
+                        updatedMessages.add(updatedUserMessageIndex + 1, errorMessage)
+                    } else {
+                        updatedMessages.add(errorMessage)
+                    }
+                    _messages.value = updatedMessages
+                }
+            }
+        }
+    }
+
+    /**
+     * Navigate to the previous version of a message thread
+     */
+    fun navigateToPreviousVersion(threadId: String): Boolean {
+        Log.d(TAG, "Attempting to navigate to previous version in thread $threadId")
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "Thread not found")
+            return false
+        }
+
+        if (!thread.hasPreviousVersion()) {
+            Log.d(TAG, "No previous version available")
+            return false
+        }
+
+        val previousVersion = thread.moveToPreviousVersion() ?: return false
+        updateVisibleMessages(thread, previousVersion)
+        return true
+    }
+
+    /**
+     * Navigate to the next version of a message thread
+     */
+    fun navigateToNextVersion(threadId: String): Boolean {
+        Log.d(TAG, "Attempting to navigate to next version in thread $threadId")
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "No next thread found")
+            return false
+        }
+
+        if (!thread.hasNextVersion()) {
+            Log.d(TAG, "No next version available")
+            return false
+        }
+ 
+        val nextVersion = thread.moveToNextVersion() ?: return false
+        updateVisibleMessages(thread, nextVersion)
+        return true
+    }
+
+
+    private fun markAllThreadVersionsWithHistory(threadId: String) {
+        val thread = messageThreads[threadId] ?: return
+    
+        // Only mark with history if there's more than one version
+        if (thread.versions.size <= 1) return
+    
+        Log.d(TAG, "Marking all ${thread.versions.size} versions in thread $threadId with hasVersionHistory")
+    
+        // Update all versions with hasVersionHistory flag
+        for (i in thread.versions.indices) {
+            val version = thread.versions[i]
+        
+            // Update user message
+            val updatedUserMessage = version.userMessage.copy(hasVersionHistory = true)
+        
+            // Update bot response if it exists
+            val updatedBotResponse = version.botResponse?.copy(hasVersionHistory = true)
+        
+            // Replace the version
+            thread.versions[i] = MessageVersion(updatedUserMessage, updatedBotResponse, version.timestamp)
+        }
+    }
+
+    /**
+     * Updates visible messages to display the specified version
+     */
+    private fun updateVisibleMessages(thread: MessageThread, version: MessageVersion) {
+        val currentMessages = _messages.value?.toMutableList() ?: return
+
+        // Find all messages belonging to this thread
+        val threadIndices = currentMessages.mapIndexedNotNull { index, message ->
+            if (message.threadId == thread.threadId) index else null
+        }
+
+        if (threadIndices.isEmpty()) return
+
+        // There should be at least one user message, and possibly one bot response
+        val userMessageIndex = threadIndices.first()
+        val botResponseIndex = if (threadIndices.size > 1) threadIndices[1] else -1
+
+        // Update user message
+        currentMessages[userMessageIndex] = version.userMessage.copy(
+            isCurrentVersion = true,
+            versionNumber = thread.currentVersionIndex
+        )
+        val botMessageVer = version.botResponse
+        // Update bot response if it exists
+        if (botResponseIndex != -1 && botMessageVer != null) {
+            currentMessages[botResponseIndex] = botMessageVer.copy(
+                isCurrentVersion = true,
+                versionNumber = thread.currentVersionIndex
+            )
+        } else if (botResponseIndex != -1 && botMessageVer == null) {
+            // Remove bot response if there isn't one for this version
+            currentMessages.removeAt(botResponseIndex)
+        } else if (botResponseIndex == -1 && botMessageVer != null) {
+            // Add bot response if there is one for this version but not in the visible list
+            currentMessages.add(userMessageIndex + 1, botMessageVer.copy(
+                isCurrentVersion = true,
+                versionNumber = thread.currentVersionIndex
+            ))
+        }
+
+        _messages.value = currentMessages
+    }
+
+    fun getMessageThread(threadId: String): MessageThread? {
+        return messageThreads[threadId]
+    }
+}
+
+
+MessageVersioning.kt
+package com.example.lilotest.data.model
+
+import android.util.Log
+import java.util.Date
+
+/**
+ * Represents a single version of a message with its response
+ */
+data class MessageVersion(
+    val userMessage: Message,
+    var botResponse: Message?,
+    val timestamp: Date = Date()
+)
+
+/**
+ * Represents a message thread with multiple versions
+ */
+data class MessageThread(
+    val threadId: String,  // Unique identifier for the thread
+    val versions: MutableList<MessageVersion> = mutableListOf(),
+    var currentVersionIndex: Int = 0  // Index of the current active version
+) {
+    fun addVersion(userMessage: Message, botResponse: Message? = null): Int {
+        val newVersion = MessageVersion(userMessage, botResponse)
+        versions.add(newVersion)
+        currentVersionIndex = versions.size - 1
+        return currentVersionIndex
+    }
+    
+    fun updateCurrentVersion(userMessage: Message? = null, botResponse: Message? = null) {
+        if (versions.isEmpty() || currentVersionIndex < 0 || currentVersionIndex >= versions.size) {
+            return
+        }
+        val currentVersion = versions[currentVersionIndex]
+        
+        userMessage?.let {
+            versions[currentVersionIndex] = currentVersion.copy(userMessage = it)
+        }
+        
+        botResponse?.let {
+            versions[currentVersionIndex] = versions[currentVersionIndex].copy(botResponse = it)
+        }
+    }
+    
+    fun getCurrentVersion(): MessageVersion? {
+        return if (versions.isNotEmpty() && currentVersionIndex >= 0 && currentVersionIndex < versions.size) {
+            versions[currentVersionIndex]
+        } else {
+            null
+        }
+    }
+    
+    fun hasNextVersion(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun hasPreviousVersion(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun moveToNextVersion(): MessageVersion? {
+        if (hasNextVersion()) {
+            currentVersionIndex++
+            return getCurrentVersion()
+        }
+        return null
+    }
+    
+    fun moveToPreviousVersion(): MessageVersion? {
+        if (hasPreviousVersion()) {
+            currentVersionIndex--
+            return getCurrentVersion()
+        }
+        return null
+    }
+
+    fun logVersions(tag: String) {
+        versions.forEachIndexed { index, version ->
+            val currentMarker = if (index == currentVersionIndex) " (CURRENT)" else ""
+            val userContent = version.userMessage.content?.take(20) ?: "null"
+            val botContent = version.botResponse?.content?.take(20) ?: "null"
+            Log.d(tag, "Version $index$currentMarker - User: $userContent..., Bot: $botContent...")
+        }
+    }
+
+    fun canNavigateBack(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun canNavigateForward(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun getCurrentVersionNumber(): Int {
+        return currentVersionIndex + 1
+    }
+    
+    fun getTotalVersions(): Int {
+        return versions.size
+    }
+}
+
+MessageThreadLogger.kt
+package com.example.lilotest.ui.chat
+
+import android.util.Log
+import com.example.lilotest.data.model.MessageThread
+
+class MessageThreadLogger {
+    companion object {
+        private const val TAG = "ThreadChainLogger"
+        
+        fun logThreadState(
+            messageThreads: Map<String, MessageThread>,
+            currentMessages: List<com.example.lilotest.data.model.Message>
+        ) {
+            Log.d(TAG, "======== THREAD STATE LOG ========")
+            Log.d(TAG, "Total threads: ${messageThreads.size}")
+            Log.d(TAG, "Currently visible messages: ${currentMessages.size}")
+            
+            messageThreads.forEach { (threadId, thread) ->
+                Log.d(TAG, "Thread: $threadId (${thread.versions.size} versions, current: ${thread.currentVersionIndex})")
+                
+                // Log versions
+                thread.versions.forEachIndexed { index, version ->
+                    val isActive = if (index == thread.currentVersionIndex) "ACTIVE" else "inactive"
+                    Log.d(TAG, "  Version $index [$isActive]:")
+                    
+                    // Check if this version's message is visible
+                    val userMsgId = version.userMessage.id
+                    val isUserMsgVisible = currentMessages.any { it.id == userMsgId }
+                    Log.d(TAG, "    User msg [${if (isUserMsgVisible) "VISIBLE" else "hidden"}]: ${version.userMessage.content?.take(30) ?: "null"}...")
+                    
+                    // Log bot response if it exists
+                    version.botResponse?.let { botResponse ->
+                        val isBotMsgVisible = currentMessages.any { it.id == botResponse.id }
+                        Log.d(TAG, "    Bot msg [${if (isBotMsgVisible) "VISIBLE" else "hidden"}]: ${botResponse.content?.take(30) ?: "null"}...")
+                    }
+                }
+                
+                // Log chains
+                Log.d(TAG, "  Chains (${thread.chains.size}):")
+                thread.chains.forEach { (chainId, chain) ->
+                    val isActive = if (chainId == thread.activeChainId) "ACTIVE" else "inactive"
+                    Log.d(TAG, "    Chain: $chainId [${isActive}] (from version: ${chain.fromVersionIndex})")
+                    Log.d(TAG, "      Messages (${chain.messages.size}):")
+                    chain.messages.forEachIndexed { index, msg ->
+                        val isVisible = currentMessages.any { it.id == msg.id }
+                        Log.d(TAG, "        ${index+1}. ${msg.type} [${if (isVisible) "VISIBLE" else "hidden"}]: ${msg.content?.take(30) ?: "null"}...")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "================================")
+        }
+    }
+}
+
+Message.kt
+package com.example.lilotest.data.model
+
+import java.util.Date
+import java.util.UUID
+
+
+data class Message(
+    val id: String = UUID.randomUUID().toString(),
+    val content: String? = null,
+    val type: MessageType,
+    val timestamp: Date = Date(),
+    val containsImage: Boolean = false,
+    val imageUrl: String? = null,
+    val imageData: String? = null,
+    val threadId: String? = null,
+    val isCurrentVersion: Boolean = true,
+    val versionNumber: Int = 0,
+    val hasVersionHistory: Boolean = false,
+    val chainId: String? = null
+)

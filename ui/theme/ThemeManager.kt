@@ -1,0 +1,728 @@
+package com.example.baboonchat.ui.theme
+
+import android.app.Activity
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.Typeface
+import android.view.View
+import android.widget.Button
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.Switch
+import android.widget.TextView
+import androidx.cardview.widget.CardView
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.RecyclerView
+import com.example.baboonchat.R
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+import io.github.kbiakov.codeview.highlight.ColorTheme
+
+/**
+ * Manages the application theme settings
+ */
+class ThemeManager(private val context: Context) {
+
+    companion object {
+        // Theme constants
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+        const val THEME_BROWN = "brown"
+        const val THEME_YELLOW = "yellow"
+        const val THEME_RED = "red"
+        const val THEME_GREEN = "green"
+        const val THEME_PURPLE = "purple"
+        const val THEME_CYAN = "cyan"
+
+        // Shared preferences keys
+        const val PREFS_NAME = "app_settings"
+        const val KEY_THEME = "app_theme"
+        const val KEY_AUTO_SCROLL = "auto_scroll_enabled"
+    }
+
+    // Theme color sets - now using hex values instead of resource IDs
+    private val themeColors = mapOf(
+        THEME_LIGHT to ThemeColors(
+            background = Color.parseColor("#F5F5F5"),
+            text = Color.parseColor("#222222"),
+            userMessageBackground = Color.parseColor("#FF0043"),
+            userMessageText = Color.parseColor("#F5F5F5"),
+            modalBackground = Color.parseColor("#F5F5F5"),
+            modalBorder = Color.parseColor("#BDBDBD"),
+            tableBackground = Color.parseColor("#FF0043"),
+            tableText = Color.parseColor("#F5F5F5"),
+            buttonColor = Color.parseColor("#F5F5F5")
+        ),
+        THEME_DARK to ThemeColors(
+            background = Color.parseColor("#222222"),
+            text = Color.parseColor("#F5F5F5"),
+            userMessageBackground = Color.parseColor("#F5F5F5"),
+            userMessageText = Color.parseColor("#222222"),
+            modalBackground = Color.parseColor("#222222"),
+            modalBorder = Color.parseColor("#F5F5F5"),
+            tableBackground = Color.parseColor("#F5F5F5"),
+            tableText = Color.parseColor("#222222"),
+            buttonColor = Color.parseColor("#222222")
+        ),
+        THEME_BROWN to ThemeColors(
+            background = Color.parseColor("#F0E6D2"),
+            text = Color.parseColor("#5D4037"),
+            userMessageBackground = Color.parseColor("#5D4037"),
+            userMessageText = Color.parseColor("#F0E6D2"),
+            modalBackground = Color.parseColor("#F0E6D2"),
+            modalBorder = Color.parseColor("#5D4037"),
+            tableBackground = Color.parseColor("#5D4037"),
+            tableText = Color.parseColor("#F0E6D2"),
+            buttonColor = Color.parseColor("#F0E6D2")
+        ),
+        THEME_YELLOW to ThemeColors(
+            background = Color.parseColor("#FFF9C4"),
+            text = Color.parseColor("#F9A825"),
+            userMessageBackground = Color.parseColor("#F9A825"),
+            userMessageText = Color.parseColor("#FFF9C4"),
+            modalBackground = Color.parseColor("#FFF9C4"),
+            modalBorder = Color.parseColor("#F9A825"),
+            tableBackground = Color.parseColor("#F9A825"),
+            tableText = Color.parseColor("#FFF9C4"),
+            buttonColor = Color.parseColor("#FFF9C4")
+        ),
+        THEME_RED to ThemeColors(
+            background = Color.parseColor("#FFCDD2"),
+            text = Color.parseColor("#8B0000"),
+            userMessageBackground = Color.parseColor("#8B0000"),
+            userMessageText = Color.parseColor("#FFCDD2"),
+            modalBackground = Color.parseColor("#FFCDD2"),
+            modalBorder = Color.parseColor("#8B0000"),
+            tableBackground = Color.parseColor("#8B0000"),
+            tableText = Color.parseColor("#FFCDD2"),
+            buttonColor = Color.parseColor("#FFCDD2")
+        ),
+        THEME_GREEN to ThemeColors(
+            background = Color.parseColor("#C8E6C9"),
+            text = Color.parseColor("#004D40"),
+            userMessageBackground = Color.parseColor("#004D40"),
+            userMessageText = Color.parseColor("#C8E6C9"),
+            modalBackground = Color.parseColor("#C8E6C9"),
+            modalBorder = Color.parseColor("#004D40"),
+            tableBackground = Color.parseColor("#004D40"),
+            tableText = Color.parseColor("#C8E6C9"),
+            buttonColor = Color.parseColor("#C8E6C9")
+        ),
+        THEME_PURPLE to ThemeColors(
+            background = Color.parseColor("#E1BEE7"),
+            text = Color.parseColor("#4A148C"),
+            userMessageBackground = Color.parseColor("#4A148C"),
+            userMessageText = Color.parseColor("#E1BEE7"),
+            modalBackground = Color.parseColor("#E1BEE7"),
+            modalBorder = Color.parseColor("#4A148C"),
+            tableBackground = Color.parseColor("#4A148C"),
+            tableText = Color.parseColor("#E1BEE7"),
+            buttonColor = Color.parseColor("#E1BEE7")
+        ),
+        THEME_CYAN to ThemeColors(
+            background = Color.parseColor("#B2EBF2"),
+            text = Color.parseColor("#006064"),
+            userMessageBackground = Color.parseColor("#006064"),
+            userMessageText = Color.parseColor("#B2EBF2"),
+            modalBackground = Color.parseColor("#B2EBF2"),
+            modalBorder = Color.parseColor("#006064"),
+            tableBackground = Color.parseColor("#006064"),
+            tableText = Color.parseColor("#B2EBF2"),
+            buttonColor = Color.parseColor("#B2EBF2")
+        )
+    )
+
+    /**
+     * Gets the current theme from SharedPreferences
+     */
+    fun getCurrentTheme(): String {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPreferences.getString(KEY_THEME, THEME_LIGHT) ?: THEME_LIGHT
+    }
+
+    /**
+     * Gets the auto-scroll setting from SharedPreferences
+     */
+    fun isAutoScrollEnabled(): Boolean {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPreferences.getBoolean(KEY_AUTO_SCROLL, true)
+    }
+
+    /**
+     * Sets the auto-scroll setting in SharedPreferences
+     */
+    fun setAutoScrollEnabled(enabled: Boolean) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().putBoolean(KEY_AUTO_SCROLL, enabled).apply()
+    }
+
+    /**
+     * Get a color value for the current theme
+     */
+    fun getThemeColor(colorType: ThemeColorType): Int {
+        val currentTheme = getCurrentTheme()
+        val colors = themeColors[currentTheme] ?: themeColors[THEME_LIGHT]!!
+
+        return when (colorType) {
+            ThemeColorType.BACKGROUND -> colors.background
+            ThemeColorType.TEXT -> colors.text
+            ThemeColorType.USER_MESSAGE_BACKGROUND -> colors.userMessageBackground
+            ThemeColorType.USER_MESSAGE_TEXT -> colors.userMessageText
+            ThemeColorType.MODAL_BACKGROUND -> colors.modalBackground
+            ThemeColorType.MODAL_BORDER -> colors.modalBorder
+            ThemeColorType.TABLE_BACKGROUND -> colors.tableBackground
+            ThemeColorType.TABLE_TEXT -> colors.tableText
+        }
+    }
+
+    fun styleSettingsBottomSheet(view: View) {
+        val currentTheme = getCurrentTheme()
+        val colors = themeColors[currentTheme] ?: themeColors[THEME_LIGHT]!!
+
+        view.setBackgroundColor(colors.modalBackground)
+
+        // Style the title
+        val titleTextView = view.findViewById<TextView>(R.id.settings_title)
+        titleTextView?.setTextColor(colors.text)
+
+        // Style the auto-scroll section
+        val autoScrollLabel = view.findViewById<TextView>(R.id.auto_scroll_label)
+        autoScrollLabel?.setTextColor(colors.text)
+
+        // Style the theme section title
+        val themeSectionTitle = view.findViewById<TextView>(R.id.theme_section_title)
+        themeSectionTitle?.setTextColor(colors.text)
+
+        // Style the switch - create tinted switch colors
+        val autoScrollSwitch = view.findViewById<Switch>(R.id.auto_scroll_switch)
+        autoScrollSwitch?.let {
+            // Create ColorStateList for the thumb
+            val thumbStates = arrayOf(
+                intArrayOf(-android.R.attr.state_checked),
+                intArrayOf(android.R.attr.state_checked)
+            )
+            val thumbColors = intArrayOf(
+                Color.LTGRAY, // When not checked
+                colors.userMessageBackground // When checked
+            )
+            val thumbColorStateList = ColorStateList(thumbStates, thumbColors)
+
+            // Create ColorStateList for the track
+            val trackStates = arrayOf(
+                intArrayOf(-android.R.attr.state_checked),
+                intArrayOf(android.R.attr.state_checked)
+            )
+            val trackColors = intArrayOf(
+                Color.GRAY, // When not checked
+                getColorWithAlpha(colors.userMessageBackground, 0.5f) // When checked
+            )
+            val trackColorStateList = ColorStateList(trackStates, trackColors)
+
+            // Apply colors to the switch
+            it.thumbTintList = thumbColorStateList
+            it.trackTintList = trackColorStateList
+
+            // Set text color for the switch text
+            it.setTextColor(colors.text)
+        }
+
+        // Style theme indicators - update their tint to be visible
+        styleThemeIndicators(view, currentTheme)
+    }
+
+    private fun styleThemeIndicators(view: View, currentTheme: String) {
+        // Contrasting colors are used to make indicators stand out from theme icons
+        val colors = themeColors[currentTheme] ?: themeColors[THEME_LIGHT]!!
+
+        val contrastColor = colors.tableText  //text
+
+        val indicators = mapOf(
+            R.id.light_theme_indicator to "#222222",
+            R.id.dark_theme_indicator to "#F5F5F5",
+            R.id.brown_theme_indicator to "#F0E6D2",
+            R.id.yellow_theme_indicator to "#FFF9C4",
+            R.id.red_theme_indicator to "#FFCDD2",
+            R.id.green_theme_indicator to "#C8E6C9",
+            R.id.purple_theme_indicator to "#E1BEE7",
+            R.id.cyan_theme_indicator to "#B2EBF2"
+        )
+
+        // Update indicator tint to use contrasting color
+        indicators.forEach { (id, contrastHexColor) ->
+            val indicator = view.findViewById<ImageView>(id)
+            indicator?.let {
+                it.imageTintList = ColorStateList.valueOf(Color.parseColor(contrastHexColor))
+            }
+        }
+    }
+
+    fun styleTopBar(topBar: View) {
+        val currentTheme = getCurrentTheme()
+        val colors = themeColors[currentTheme] ?: themeColors[THEME_LIGHT]!!
+
+        topBar.setBackgroundColor(colors.tableBackground)
+    }
+
+    /**
+     * Applies styling to user message bubble
+     */
+    fun styleUserMessage(view: View) {
+        val currentTheme = getCurrentTheme()
+        val cardView = view as? CardView
+        val messageContent = view.findViewById<TextView>(R.id.message_content)
+        val timestamp = view.findViewById<TextView>(R.id.message_timestamp)
+
+        // Apply theme colors based on the selected theme using raw hex colors
+        when (currentTheme) {
+            THEME_LIGHT -> {
+                // Light theme (dark grey background, white text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#FF0043"))
+                messageContent?.setTextColor(Color.parseColor("#F5F5F5"))
+                timestamp?.setTextColor(Color.parseColor("#F5F5F5"))
+            }
+            THEME_DARK -> {
+                // Dark theme (white background, black text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#F5F5F5"))
+                messageContent?.setTextColor(Color.parseColor("#222222"))
+                timestamp?.setTextColor(Color.parseColor("#222222"))
+            }
+            THEME_BROWN -> {
+                // Brown theme (dark brown background, light khaki text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#5D4037"))
+                messageContent?.setTextColor(Color.parseColor("#F0E6D2"))
+                timestamp?.setTextColor(Color.parseColor("#F0E6D2"))
+            }
+            THEME_YELLOW -> {
+                // Yellow theme (dark yellow background, light yellow text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#F9A825"))
+                messageContent?.setTextColor(Color.parseColor("#FFF9C4"))
+                timestamp?.setTextColor(Color.parseColor("#FFF9C4"))
+            }
+            THEME_RED -> {
+                // Red theme (dark red/wine red background, light pink text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#8B0000"))
+                messageContent?.setTextColor(Color.parseColor("#FFCDD2"))
+                timestamp?.setTextColor(Color.parseColor("#FFCDD2"))
+            }
+            THEME_GREEN -> {
+                // Green theme (dark green/british racing green background, light green text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#004D40"))
+                messageContent?.setTextColor(Color.parseColor("#C8E6C9"))
+                timestamp?.setTextColor(Color.parseColor("#C8E6C9"))
+            }
+            THEME_PURPLE -> {
+                // Purple theme (dark purple background, light purple text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#4A148C"))
+                messageContent?.setTextColor(Color.parseColor("#E1BEE7"))
+                timestamp?.setTextColor(Color.parseColor("#E1BEE7"))
+            }
+            THEME_CYAN -> {
+                // Cyan theme (dark cyan/blue background, light cyan text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#006064"))
+                messageContent?.setTextColor(Color.parseColor("#B2EBF2"))
+                timestamp?.setTextColor(Color.parseColor("#B2EBF2"))
+            }
+        }
+    }
+
+    /**
+     * Applies styling to bot message bubble
+     */
+    fun styleBotMessage(view: View) {
+        val currentTheme = getCurrentTheme()
+        val cardView = view as? CardView
+        val messageContent = view.findViewById<TextView>(R.id.message_content)
+        val timestamp = view.findViewById<TextView>(R.id.message_timestamp)
+
+        // Apply theme colors based on the selected theme using raw hex colors
+        when (currentTheme) {
+            THEME_LIGHT -> {
+                // Light theme (white background, black text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#F5F5F5"))
+                messageContent?.setTextColor(Color.parseColor("#222222"))
+                timestamp?.setTextColor(Color.GRAY)
+            }
+            THEME_DARK -> {
+                // Dark theme (black background, white text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#222222"))
+                messageContent?.setTextColor(Color.parseColor("#F5F5F5"))
+                timestamp?.setTextColor(Color.LTGRAY)
+            }
+            THEME_BROWN -> {
+                // Brown theme (light khaki background, dark brown text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#F0E6D2"))
+                messageContent?.setTextColor(Color.parseColor("#5D4037"))
+                timestamp?.setTextColor(Color.parseColor("#5D4037"))
+            }
+            THEME_YELLOW -> {
+                // Yellow theme (light yellow background, dark yellow text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#FFF9C4"))
+                messageContent?.setTextColor(Color.parseColor("#F9A825"))
+                timestamp?.setTextColor(Color.parseColor("#F9A825"))
+            }
+            THEME_RED -> {
+                // Red theme (light pink background, dark red/wine red text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#FFCDD2"))
+                messageContent?.setTextColor(Color.parseColor("#8B0000"))
+                timestamp?.setTextColor(Color.parseColor("#8B0000"))
+            }
+            THEME_GREEN -> {
+                // Green theme (light green background, dark green/british racing green text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#C8E6C9"))
+                messageContent?.setTextColor(Color.parseColor("#004D40"))
+                timestamp?.setTextColor(Color.parseColor("#004D40"))
+            }
+            THEME_PURPLE -> {
+                // Purple theme (light purple background, dark purple text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#E1BEE7"))
+                messageContent?.setTextColor(Color.parseColor("#4A148C"))
+                timestamp?.setTextColor(Color.parseColor("#4A148C"))
+            }
+            THEME_CYAN -> {
+                // Cyan theme (light cyan background, dark cyan/blue text)
+                cardView?.setCardBackgroundColor(Color.parseColor("#B2EBF2"))
+                messageContent?.setTextColor(Color.parseColor("#006064"))
+                timestamp?.setTextColor(Color.parseColor("#006064"))
+            }
+        }
+    }
+
+    /**
+     * Applies styling to error message
+     */
+    fun styleErrorMessage(view: View) {
+        val messageContent = view.findViewById<TextView>(R.id.message_content)
+        val timestamp = view.findViewById<TextView>(R.id.message_timestamp)
+
+        messageContent?.setTextColor(Color.WHITE)
+        messageContent?.setBackgroundColor(Color.parseColor("#D32F2F")) // Error red color
+
+        // Timestamp can be themed
+        val theme = getCurrentTheme()
+        when (theme) {
+            THEME_DARK -> timestamp?.setTextColor(Color.parseColor("#CCCCCC")) // Light gray
+            else -> timestamp?.setTextColor(Color.parseColor("#757575")) // Gray
+        }
+    }
+
+    /**
+     * Get table styling colors for the current theme
+     */
+    fun getTableColors(): TableColors {
+        val currentTheme = getCurrentTheme()
+
+        return when (currentTheme) {
+            THEME_LIGHT -> TableColors(
+                backgroundColor = Color.parseColor("#F5F5F5"),
+                headerBackgroundColor = Color.parseColor("#BDBDBD"),
+                borderColor = Color.parseColor("#DDDDDD"),
+                textColor = Color.parseColor("#DDDDDD"),
+                headerTextColor = Color.parseColor("#222222"),
+                alternateRowColor = lightenColor(Color.parseColor("#F5F5F5"), 0.90f) // Light gray alternate row color
+            )
+            THEME_DARK -> TableColors(
+                backgroundColor = Color.parseColor("#222222"),
+                headerBackgroundColor = Color.parseColor("#222222"),
+                borderColor = Color.parseColor("#444444"),
+                textColor = Color.parseColor("#444444"),
+                headerTextColor = Color.parseColor("#F5F5F5"),
+                alternateRowColor = lightenColor(Color.parseColor("#222222"), 0.90f) // Darker gray for alternate rows
+            )
+            THEME_BROWN -> TableColors(
+                backgroundColor = Color.parseColor("#5D4037"),
+                headerBackgroundColor = lightenColor(Color.parseColor("#5D4037"), 0.80f),
+                borderColor = Color.parseColor("#5D4037"),
+                textColor = Color.parseColor("#5D4037"),
+                headerTextColor = Color.parseColor("#F0E6D2"),
+                alternateRowColor = lightenColor(Color.parseColor("#5D4037"), 0.90f)
+            )
+            THEME_YELLOW -> TableColors(
+                backgroundColor = Color.parseColor("#F9A825"),
+                headerBackgroundColor = lightenColor(Color.parseColor("#F9A825"), 0.80f),
+                borderColor = Color.parseColor("#F9A825"),
+                textColor = Color.parseColor("#F9A825"),
+                headerTextColor = Color.parseColor("#FFF9C4"),
+                alternateRowColor = lightenColor(Color.parseColor("#F9A825"), 0.90f)
+            )
+            THEME_RED -> TableColors(
+                backgroundColor = Color.parseColor("#8B0000"),
+                headerBackgroundColor = lightenColor(Color.parseColor("#8B0000"), 0.80f),
+                borderColor = Color.parseColor("#8B0000"),
+                textColor = Color.parseColor("#8B0000"),
+                headerTextColor = Color.parseColor("#FFCDD2"),
+                alternateRowColor = lightenColor(Color.parseColor("#8B0000"), 0.90f)
+            )
+            THEME_GREEN -> TableColors(
+                backgroundColor = Color.parseColor("#004D40"),
+                headerBackgroundColor = lightenColor(Color.parseColor("#004D40"), 0.80f),
+                borderColor = Color.parseColor("#004D40"),
+                textColor = Color.parseColor("#004D40"),
+                headerTextColor = Color.parseColor("#C8E6C9"),
+                alternateRowColor = lightenColor(Color.parseColor("#004D40"), 0.90f)
+            )
+            THEME_PURPLE -> TableColors(
+                backgroundColor = Color.parseColor("#4A148C"),
+                headerBackgroundColor = lightenColor(Color.parseColor("#4A148C"), 0.80f),
+                borderColor = Color.parseColor("#4A148C"),
+                textColor = Color.parseColor("#4A148C"),
+                headerTextColor = Color.parseColor("#E1BEE7"),
+                alternateRowColor = lightenColor(Color.parseColor("#4A148C"), 0.90f)
+            )
+            THEME_CYAN -> TableColors(
+                backgroundColor = lightenColor(Color.parseColor("#006064"), 0.80f),
+                headerBackgroundColor = lightenColor(Color.parseColor("#006064"), 0.80f),
+                borderColor = Color.parseColor("#006064"),
+                textColor = Color.parseColor("#006064"),
+                headerTextColor = Color.parseColor("#B2EBF2"),
+                alternateRowColor = lightenColor(Color.parseColor("#006064"), 0.90f)
+            )
+            else -> TableColors(
+                backgroundColor = Color.parseColor("#f8f9fa"),
+                headerBackgroundColor = Color.parseColor("#e9ecef"),
+                borderColor = Color.parseColor("#dee2e6"),
+                textColor = Color.parseColor("#dee2e6"),
+                headerTextColor = Color.parseColor("#495057"),
+                alternateRowColor = Color.parseColor("#f0f0f0")
+            )
+        }
+    }
+
+    /**
+     * Get code block colors for the current theme
+     */
+    fun getCodeBlockColors(): CodeBlockColors {
+        val currentTheme = getCurrentTheme()
+
+        return when (currentTheme) {
+            THEME_LIGHT -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#f8f9fa"),
+                headerBackgroundColor = Color.parseColor("#e9ecef"),
+                textColor = Color.parseColor("#e9ecef"),
+                headerTextColor = Color.parseColor("#6c757d"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#212121")
+            )
+            THEME_DARK -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#2b2b2b"),
+                headerBackgroundColor = Color.parseColor("#3c3f41"),
+                textColor = Color.parseColor("#3c3f41"),
+                headerTextColor = Color.parseColor("#CCCCCC"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#CCCCCC")
+            )
+            THEME_BROWN -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#5D4037"),
+                headerBackgroundColor = Color.parseColor("#4B3330"),
+                textColor = Color.parseColor("#4B3330"),
+                headerTextColor = Color.parseColor("#F0E6D2"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#F0E6D2")
+            )
+            THEME_YELLOW -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#F9A825"),
+                headerBackgroundColor = Color.parseColor("#C78700"),
+                textColor = Color.parseColor("#C78700"),
+                headerTextColor = Color.parseColor("#FFF9C4"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#FFF9C4")
+            )
+            THEME_RED -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#8B0000"),
+                headerBackgroundColor = Color.parseColor("#B30000"),
+                textColor = Color.parseColor("B30000"),
+                headerTextColor = Color.parseColor("#FFCDD2"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#FFCDD2")
+            )
+            THEME_GREEN -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#004D40"),
+                headerBackgroundColor = Color.parseColor("#003D33"),
+                textColor = Color.parseColor("#003D33"),
+                headerTextColor = Color.parseColor("#C8E6C9"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#C8E6C9")
+            )
+            THEME_PURPLE -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#4A148C"),
+                headerBackgroundColor = Color.parseColor("#3B1070"),
+                textColor = Color.parseColor("#3B1070"),
+                headerTextColor = Color.parseColor("#E1BEE7"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#E1BEE7")
+            )
+            THEME_CYAN -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#006064"),
+                headerBackgroundColor = Color.parseColor("#004D51"),
+                textColor = Color.parseColor("#017E8D"),
+                headerTextColor = Color.parseColor("#B2EBF2"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#B2EBF2")
+            )
+            else -> CodeBlockColors(
+                backgroundColor = Color.parseColor("#f8f9fa"),
+                headerBackgroundColor = Color.parseColor("#e9ecef"),
+                textColor = Color.parseColor("#3A3939"),
+                headerTextColor = Color.parseColor("#6c757d"),
+                colorTheme = ColorTheme.DEFAULT,
+                buttonColor = Color.parseColor("#6c757d"),
+            )
+        }
+    }
+
+    /**
+     * Applies the current theme to the activity
+     */
+    fun applyTheme(activity: Activity) {
+        val currentTheme = getCurrentTheme()
+        val colors = themeColors[currentTheme] ?: themeColors[THEME_LIGHT]!!
+
+        // Get the root view
+        val rootView = activity.findViewById<View>(android.R.id.content)
+        rootView.setBackgroundColor(colors.background)
+
+        // Apply theme to the main container
+        activity.findViewById<View>(R.id.container)?.setBackgroundColor(colors.background)
+
+        // Apply theme to the top bar
+        activity.findViewById<View>(R.id.top_bar)?.setBackgroundColor(colors.tableBackground)
+
+        // Set settings gear icon based on theme
+        val settingsButton = activity.findViewById<ImageButton>(R.id.settings_button)
+        settingsButton?.setImageResource(getGearIconForTheme(currentTheme))
+
+        // Apply to RecyclerView background
+        activity.findViewById<RecyclerView>(R.id.messages_recycler_view)?.setBackgroundColor(colors.background)
+
+        // Apply to input area
+        val messageInput = activity.findViewById<TextInputEditText>(R.id.message_input)
+        val inputLayout = activity.findViewById<TextInputLayout>(R.id.message_input_layout)
+
+        messageInput?.let {
+            it.setTextColor(colors.text)
+            it.setHintTextColor(getColorWithAlpha(colors.text, 0.6f))
+            it.backgroundTintList = ColorStateList.valueOf(colors.text)
+        }
+
+        inputLayout?.let {
+            it.boxBackgroundColor = getColorWithAlpha(colors.background, 0.8f)
+            it.hintTextColor = ColorStateList.valueOf(getColorWithAlpha(colors.text, 0.7f))
+        }
+
+        // Apply to send button
+        val sendButton = activity.findViewById<ImageButton>(R.id.send_button)
+        sendButton?.let {
+            it.backgroundTintList = ColorStateList.valueOf(colors.userMessageBackground)
+            it.imageTintList = ColorStateList.valueOf(colors.userMessageText)
+        }
+
+        // Update drawables
+        updateDrawablesForTheme(activity, currentTheme)
+    }
+
+    /**
+     * Get the appropriate gear icon resource based on theme
+     */
+    private fun getGearIconForTheme(theme: String): Int {
+        return when (theme) {
+            THEME_LIGHT -> R.drawable.light_gear_light
+            THEME_DARK -> R.drawable.dark_gear_light
+            THEME_BROWN -> R.drawable.brown_gear_light
+            THEME_YELLOW -> R.drawable.yellow_gear_light
+            THEME_RED -> R.drawable.red_gear_light
+            THEME_GREEN -> R.drawable.green_gear_light
+            THEME_PURPLE -> R.drawable.purple_gear_light
+            THEME_CYAN -> R.drawable.cyan_gear_light
+            else -> R.drawable.light_gear_light
+        }
+    }
+
+    /**
+     * Updates background drawables for message bubbles based on the theme
+     */
+    private fun updateDrawablesForTheme(activity: Activity, theme: String) {
+        // No implementation needed for now since we use CardView backgrounds
+    }
+
+    /**
+     * Helper method to get a color with alpha value
+     */
+    private fun getColorWithAlpha(color: Int, alpha: Float): Int {
+        val alphaInt = (alpha * 255).toInt()
+        return Color.argb(alphaInt, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
+    /**
+     * Helper method to lighten a color for headers
+     */
+    private fun lightenColor(color: Int, factor: Float = 1.2f): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        hsv[2] *= factor // Increase brightness
+        hsv[2] = hsv[2].coerceIn(0f, 1f) // Ensure brightness stays within valid range
+        return Color.HSVToColor(hsv)
+    }
+
+    /**
+     * Helper method to darken a color for headers
+     */
+    private fun darkenColor(color: Int, factor: Float = 0.8f): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        hsv[2] *= 0.8f // Reduce brightness to 80%
+        return Color.HSVToColor(hsv)
+    }
+
+    /**
+     * Enum for theme color types
+     */
+    enum class ThemeColorType {
+        BACKGROUND,
+        TEXT,
+        USER_MESSAGE_BACKGROUND,
+        USER_MESSAGE_TEXT,
+        MODAL_BACKGROUND,
+        MODAL_BORDER,
+        TABLE_BACKGROUND,
+        TABLE_TEXT
+    }
+
+    /**
+     * Data class to store theme colors using raw colors instead of resource IDs
+     */
+    data class ThemeColors(
+        val background: Int,
+        val text: Int,
+        val userMessageBackground: Int,
+        val userMessageText: Int,
+        val modalBackground: Int,
+        val modalBorder: Int,
+        val tableBackground: Int,
+        val tableText: Int,
+        val buttonColor: Int
+    )
+
+    /**
+     * Data class for table colors
+     */
+    data class TableColors(
+        val backgroundColor: Int,
+        val headerBackgroundColor: Int,
+        val borderColor: Int,
+        val textColor: Int,
+        val headerTextColor: Int,
+        val alternateRowColor: Int
+    )
+
+    /**
+     * Data class for code block colors
+     */
+    data class CodeBlockColors(
+        val backgroundColor: Int,
+        val headerBackgroundColor: Int,
+        val textColor: Int,
+        val headerTextColor: Int,
+        val colorTheme: ColorTheme,
+        val buttonColor: Int
+    )
+}
