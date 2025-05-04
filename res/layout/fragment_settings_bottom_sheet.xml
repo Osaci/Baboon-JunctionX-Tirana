@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <!-- Settings Title -->
+    <TextView
+        android:id="@+id/settings_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Settings"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Auto-Scroll Section -->
+    <TextView
+        android:id="@+id/auto_scroll_label"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Auto-scroll to new messages"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@+id/auto_scroll_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/settings_title" />
+
+    <Switch
+        android:id="@+id/auto_scroll_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@+id/auto_scroll_label"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/auto_scroll_label" />
+
+    <!-- Theme Selection Title -->
+    <TextView
+        android:id="@+id/theme_section_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Theme"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/auto_scroll_label" />
+
+    <!-- First Row of Theme Options -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/light_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/theme_section_title">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#F5F5F5">
+
+            <ImageView
+                android:id="@+id/light_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#000000"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/dark_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@+id/light_theme_card"
+        app:layout_constraintTop_toTopOf="@+id/light_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#222222">
+
+            <ImageView
+                android:id="@+id/dark_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#FFFFFF"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/brown_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@+id/dark_theme_card"
+        app:layout_constraintTop_toTopOf="@+id/dark_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#5D4037">
+
+            <ImageView
+                android:id="@+id/brown_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#5D4037"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/yellow_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@+id/brown_theme_card"
+        app:layout_constraintTop_toTopOf="@+id/brown_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#F9A825">
+
+            <ImageView
+                android:id="@+id/yellow_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#F9A825"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Second Row of Theme Options -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/red_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/light_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#8B0000">
+
+            <ImageView
+                android:id="@+id/red_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#8B0000"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/green_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@+id/red_theme_card"
+        app:layout_constraintTop_toTopOf="@+id/red_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#004D40">
+
+            <ImageView
+                android:id="@+id/green_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#004D40"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/purple_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@+id/green_theme_card"
+        app:layout_constraintTop_toTopOf="@+id/green_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#4A148C">
+
+            <ImageView
+                android:id="@+id/purple_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#4A148C"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cyan_theme_card"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="16dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@+id/purple_theme_card"
+        app:layout_constraintTop_toTopOf="@+id/purple_theme_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#006064">
+
+            <ImageView
+                android:id="@+id/cyan_theme_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                app:tint="#006064"
+                android:visibility="invisible" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Spacer for bottom margin -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="16dp"
+        app:layout_constraintTop_toBottomOf="@+id/red_theme_card"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginTop="16dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

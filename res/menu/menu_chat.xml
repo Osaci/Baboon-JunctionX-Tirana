@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <item
+        android:id="@+id/action_view_stats"
+        android:title="Chat History Stats"
+        android:icon="@drawable/ic_stats"
+        app:showAsAction="never" />
+    
+    <item
+        android:id="@+id/action_backup_history"
+        android:title="Backup History"
+        android:icon="@drawable/ic_backup"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clear_history"
+        android:title="Clear History"
+        android:icon="@drawable/ic_delete"
+        app:showAsAction="never" />
+</menu>

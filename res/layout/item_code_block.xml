@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/code_block_background">
+
+    <!-- Header with language and copy button -->
+    <LinearLayout
+        android:id="@+id/code_block_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="@color/code_header_bg">
+
+        <TextView
+            android:id="@+id/code_language_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/code_header_text"
+            android:textSize="16sp"
+            android:fontFamily="monospace" />
+
+        <LinearLayout
+            android:id="@+id/copy_layout"
+            android:layout_width="70dp"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+        
+            <ImageView
+                android:id="@+id/copy_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="6dp"/>
+        
+            <TextView
+                android:id="@+id/copy_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Copy"
+                android:textSize="14sp"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Code content with syntax highlighting -->
+    <io.github.kbiakov.codeview.CodeView
+        android:id="@+id/code_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp" />
+
+</LinearLayout>

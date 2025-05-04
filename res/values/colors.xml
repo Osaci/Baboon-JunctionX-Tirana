@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Original table colors (can keep these for reference) -->
+    <color name="table1">#f5f5f5</color>
+    <color name="table2">#e83e8c</color>
+    <color name="table3">#e9ecef</color>
+    <color name="table4">#f8f9fa</color>
+    
+    <!-- Base Android theme colors -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Light Theme Colors -->
+    <color name="light_background">@color/white</color>
+    <color name="light_text">@color/black</color>
+    <color name="light_modal_bg">@color/white</color>
+    <color name="light_modal_border">#BDBDBD</color><!-- Grey -->
+    <color name="light_table_bg">#BDBDBD</color><!-- Grey -->
+    <color name="light_table_text">@color/black</color>
+    
+    <!-- Dark Theme Colors -->
+    <color name="dark_background">@color/black</color>
+    <color name="dark_text">@color/white</color>
+    <color name="dark_modal_bg">@color/black</color>
+    <color name="dark_modal_border">@color/white</color>
+    <color name="dark_table_bg">@color/white</color>
+    <color name="dark_table_text">@color/black</color>
+    
+    <!-- Brown Theme Colors -->
+    <color name="brown_light">#F0E6D2</color><!-- Light khaki -->
+    <color name="brown_dark">#5D4037</color><!-- Dark brown -->
+    <color name="brown_background">@color/brown_light</color>
+    <color name="brown_text">@color/brown_dark</color>
+    <color name="brown_user_msg_bg">@color/brown_dark</color>
+    <color name="brown_user_msg_text">@color/brown_light</color>
+    <color name="brown_modal_bg">@color/brown_light</color>
+    <color name="brown_modal_border">@color/brown_dark</color>
+    <color name="brown_table_bg">@color/brown_dark</color>
+    <color name="brown_table_text">@color/brown_light</color>
+    
+    <!-- Yellow Theme Colors -->
+    <color name="yellow_light">#FFF9C4</color><!-- Light yellow -->
+    <color name="yellow_dark">#F9A825</color><!-- Dark yellow -->
+    <color name="yellow_background">@color/yellow_light</color>
+    <color name="yellow_text">@color/yellow_dark</color>
+    <color name="yellow_user_msg_bg">@color/yellow_dark</color>
+    <color name="yellow_user_msg_text">@color/yellow_light</color>
+    <color name="yellow_modal_bg">@color/yellow_light</color>
+    <color name="yellow_modal_border">@color/yellow_dark</color>
+    <color name="yellow_table_bg">@color/yellow_dark</color>
+    <color name="yellow_table_text">@color/yellow_light</color>
+    
+    <!-- Red Theme Colors -->
+    <color name="red_light">#FFCDD2</color><!-- Light pink -->
+    <color name="red_dark">#8B0000</color><!-- Wine red -->
+    <color name="red_background">@color/red_light</color>
+    <color name="red_text">@color/red_dark</color>
+    <color name="red_user_msg_bg">@color/red_dark</color>
+    <color name="red_user_msg_text">@color/red_light</color>
+    <color name="red_modal_bg">@color/red_light</color>
+    <color name="red_modal_border">@color/red_dark</color>
+    <color name="red_table_bg">@color/red_dark</color>
+    <color name="red_table_text">@color/red_light</color>
+    
+    <!-- Green Theme Colors -->
+    <color name="green_light">#C8E6C9</color><!-- Light green -->
+    <color name="green_dark">#004D40</color><!-- British racing green -->
+    <color name="green_background">@color/green_light</color>
+    <color name="green_text">@color/green_dark</color>
+    <color name="green_user_msg_bg">@color/green_dark</color>
+    <color name="green_user_msg_text">@color/green_light</color>
+    <color name="green_modal_bg">@color/green_light</color>
+    <color name="green_modal_border">@color/green_dark</color>
+    <color name="green_table_bg">@color/green_dark</color>
+    <color name="green_table_text">@color/green_light</color>
+    
+    <!-- Purple Theme Colors -->
+    <color name="purple_light">#E1BEE7</color><!-- Light purple -->
+    <color name="purple_dark">#4A148C</color><!-- Dark purple -->
+    <color name="purple_background">@color/purple_light</color>
+    <color name="purple_text">@color/purple_dark</color>
+    <color name="purple_user_msg_bg">@color/purple_dark</color>
+    <color name="purple_user_msg_text">@color/purple_light</color>
+    <color name="purple_modal_bg">@color/purple_light</color>
+    <color name="purple_modal_border">@color/purple_dark</color>
+    <color name="purple_table_bg">@color/purple_dark</color>
+    <color name="purple_table_text">@color/purple_light</color>
+    
+    <!-- Cyan Theme Colors -->
+    <color name="cyan_light">#B2EBF2</color><!-- Light cyan -->
+    <color name="cyan_dark">#006064</color><!-- Dark cyan/blue -->
+    <color name="cyan_background">@color/cyan_light</color>
+    <color name="cyan_text">@color/cyan_dark</color>
+    <color name="cyan_user_msg_bg">@color/cyan_dark</color>
+    <color name="cyan_user_msg_text">@color/cyan_light</color>
+    <color name="cyan_modal_bg">@color/cyan_light</color>
+    <color name="cyan_modal_border">@color/cyan_dark</color>
+    <color name="cyan_table_bg">@color/cyan_dark</color>
+    <color name="cyan_table_text">@color/cyan_light</color>
+    
+    <!-- Theme-aware table colors -->
+    <color name="table_content_bg">@color/table1</color>
+    <color name="table_accent">@color/table2</color>
+    <color name="table_header_bg">@color/table3</color>
+    <color name="table_bg">@color/table4</color>
+    
+    <!-- Inline code colors -->
+    <color name="inline_code_bg">#f5f5f5</color>
+    <color name="inline_code_fg">#e83e8c</color>
+    
+    <!-- Code block colors -->
+    <color name="code_header_bg">#f8f9fa</color>
+    <color name="code_header_text">#6c757d</color>
+    <color name="code_block_border">#e9ecef</color>
+
+    <!-- Bot message colors -->
+    <color name="dark_bot_msg_text">#FFFFFF</color>
+    <color name="light_bot_msg_text">#000000</color>
+    
+    <!-- Bot message background colors -->
+    <color name="dark_bot_msg_bg">#424242</color>
+    <color name="light_bot_msg_bg">#F5F5F5</color>
+    
+    <!-- User message colors -->
+    <color name="dark_user_msg_text">#FFFFFF</color>
+    <color name="light_user_msg_text">#FFFFFF</color>
+    
+    <!-- User message background colors -->
+    <color name="dark_user_msg_bg">#0084FF</color>
+    <color name="light_user_msg_bg">#007AFF</color>
+
+
+    <!-- System message colors -->
+    <color name="system_message_bg">#F0F0F0</color>
+    <color name="system_message_text">#757575</color>
+    
+    <!-- Other colors -->
+    <color name="timestamp_text">#9E9E9E</color>
+    <color name="secondary_text">#757575</color>
+
+    <!-- Bot message colors -->
+    <color name="bot_message_text">#000000</color>
+    <color name="bot_message_background">#F5F5F5</color>
+    
+    <!-- Primary theme color -->
+    <color name="primary_color">#6200EE</color>
+    
+    <!-- Support UI colors -->
+    <color name="support_blue">#2196F3</color>
+    <color name="green">#4CAF50</color>
+    <color name="support_info_background">#E3F2FD</color>
+</resources>

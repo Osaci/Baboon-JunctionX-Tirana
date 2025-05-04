@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/table4"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="8dp">
+
+    <!-- Table header bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="@color/table3">
+
+        <!-- Table indicator -->
+        <TextView
+            android:id="@+id/table_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TABLE"
+            android:textStyle="bold"
+            android:textColor="#495057"
+            android:layout_gravity="center_vertical" />
+
+        <!-- Spacer -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Copy button -->
+        <Button
+            android:id="@+id/copy_table_button"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="Copy"
+            android:background="?android:attr/selectableItemBackground"
+            android:drawablePadding="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+    </LinearLayout>
+
+    <!-- Horizontal scroll view for table content -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- Container for the table content -->
+        <LinearLayout
+            android:id="@+id/table_content_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp" />
+    </HorizontalScrollView>
+</LinearLayout>
