@@ -1,0 +1,213 @@
+package com.example.lilotest.ui.chat
+import android.util.Log
+import android.os.Bundle
+import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.lilotest.R
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.ui.settings.SettingsBottomSheetFragment
+import com.example.lilotest.ui.theme.ThemeManager
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+
+class ChatFragment : Fragment(), SettingsBottomSheetFragment.ThemeChangeListener, 
+                     SettingsBottomSheetFragment.AutoScrollChangeListener {
+    lateinit var viewModel: ChatViewModel
+    private lateinit var messageAdapter: MessageAdapter
+    private lateinit var messageInput: TextInputEditText
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var themeManager: ThemeManager
+    private var autoScrollEnabled = true
+
+    private val TAG = "ChatFragment"
+    private val CHAIN_TAG = "MessageChain"
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the updated layout with settings button
+        return inflater.inflate(R.layout.fragment_chat_with_settings, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Initialize Theme Manager
+        themeManager = ThemeManager(requireContext())
+        autoScrollEnabled = themeManager.isAutoScrollEnabled()
+
+        val topBar = view.findViewById<View>(R.id.top_bar)
+
+        themeManager.styleTopBar(topBar)
+
+        // Initialize ViewModel
+        viewModel = ViewModelProvider(this)[ChatViewModel::class.java]
+
+        // Setup RecyclerView
+        recyclerView = view.findViewById(R.id.messages_recycler_view)
+        recyclerView.layoutManager = LinearLayoutManager(context)
+
+        val viewHolderFactory = MessageViewHolderFactory(requireContext())
+
+        messageAdapter = MessageAdapter(viewHolderFactory)
+
+        recyclerView.adapter = messageAdapter
+        messageAdapter.setChatViewModel(viewModel)
+
+        messageAdapter.setEditMessageListener(object : MessageAdapter.EditMessageListener {
+            override fun onMessageEdited(messageId: String, newContent: String) {
+                Log.d(CHAIN_TAG, "Message edited: $messageId, starting new chain")
+                viewModel.editMessage(messageId, newContent)
+            }
+        })
+
+        messageAdapter.setVersionNavigationListener(object : MessageAdapter.MessageVersionNavigationListener {
+            override fun onPreviousVersion(threadId: String) {
+                Log.d(CHAIN_TAG, "Navigating to previous version in thread: $threadId")
+                viewModel.navigateToPreviousVersion(threadId)
+            }
+            override fun onNextVersion(threadId: String) {
+                Log.d(CHAIN_TAG, "Navigating to next version in thread: $threadId")
+                viewModel.navigateToNextVersion(threadId)
+            }
+            override fun navigateToSpecificVersion(threadId: String, versionIndex: Int) {
+                Log.d(CHAIN_TAG, "Navigating to specific version $versionIndex in thread: $threadId")
+                viewModel.navigateToSpecificVersion(threadId, versionIndex)
+            }
+        })
+
+        // Setup message input
+        messageInput = view.findViewById(R.id.message_input)
+        messageInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEND ||
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                sendMessage()
+                return@setOnEditorActionListener true
+            }
+            false
+        }
+
+        view.findViewById<View>(R.id.send_button).setOnClickListener {
+            sendMessage()
+        }
+
+        // Setup settings button
+        val settingsButton = view.findViewById<ImageButton>(R.id.settings_button)
+        settingsButton.setImageResource(getSettingsIconForCurrentTheme())
+        settingsButton.setOnClickListener {
+            showSettingsModal()
+        }
+
+        // Observe messages from ViewModel
+        viewModel.messages.observe(viewLifecycleOwner) { messages ->
+            Log.d(CHAIN_TAG, "Messages updated: ${messages.size} messages")
+
+            // Log which chains the messages belong to 
+            messages.forEachIndexed { index, message ->
+                Log.d(CHAIN_TAG, "Message $index: chainId=${message.chainId}, threadId=${message.threadId}")
+            }
+            messageAdapter.submitList(messages)
+            
+            // Auto-scroll to bottom if enabled
+            if (autoScrollEnabled && messages.isNotEmpty()) {
+                recyclerView.post {
+                    recyclerView.smoothScrollToPosition(messages.size - 1)
+                }
+            }
+            // Log the state of all threads
+            logMessageThreadState()
+        }
+
+        // Apply current theme
+        applyCurrentTheme()
+    }
+
+    private fun sendMessage() {
+        val messageText = messageInput.text.toString().trim()
+        if (messageText.isNotEmpty()) {
+            Log.d(CHAIN_TAG, "Sending new message")
+            viewModel.sendMessage(messageText)
+            messageInput.text?.clear()
+            
+            // Always scroll to bottom when sending a message
+            recyclerView.post {
+                recyclerView.smoothScrollToPosition((recyclerView.adapter?.itemCount ?: 1) - 1)
+            }
+        }
+    }
+
+    private fun logMessageThreadState() {
+        // Use MessageThreadLogger to log the state of threads and chains
+        MessageThreadLogger.logThreadState(
+            viewModel.getMessageThreads(),
+            viewModel.messages.value ?: emptyList()
+        )
+    }
+ 
+    private fun showSettingsModal() {
+        val settingsBottomSheet = SettingsBottomSheetFragment.newInstance()
+        settingsBottomSheet.setThemeChangeListener(this)
+        settingsBottomSheet.setAutoScrollChangeListener(this)
+        settingsBottomSheet.show(parentFragmentManager, SettingsBottomSheetFragment.TAG)
+    }
+
+    override fun onThemeChanged(theme: String) {
+        // Apply new theme
+        applyCurrentTheme()
+
+
+        view?.findViewById<View>(R.id.top_bar)?.let {
+            themeManager.styleTopBar(it)
+        }
+
+
+        // Update settings button icon
+        view?.findViewById<ImageButton>(R.id.settings_button)?.let {
+            it.setImageResource(getSettingsIconForCurrentTheme())
+        }
+        messageAdapter.notifyThemeChanged()
+    }
+
+    override fun onAutoScrollChanged(enabled: Boolean) {
+        autoScrollEnabled = enabled
+        
+        // If enabled and turned on, scroll to the bottom immediately
+        if (autoScrollEnabled && recyclerView.adapter != null && recyclerView.adapter!!.itemCount > 0) {
+            recyclerView.smoothScrollToPosition(recyclerView.adapter!!.itemCount - 1)
+        }
+    }
+
+    private fun applyCurrentTheme() {
+        // We'll apply the theme to the activity which affects all fragments
+        activity?.let {
+            themeManager.applyTheme(it)
+        }
+    }
+
+    private fun getSettingsIconForCurrentTheme(): Int {
+        val currentTheme = themeManager.getCurrentTheme()
+        return when (currentTheme) {
+            ThemeManager.THEME_LIGHT -> R.drawable.light_gear_light
+            ThemeManager.THEME_DARK -> R.drawable.dark_gear_light
+            ThemeManager.THEME_BROWN -> R.drawable.brown_gear_light
+            ThemeManager.THEME_YELLOW -> R.drawable.yellow_gear_light
+            ThemeManager.THEME_RED -> R.drawable.red_gear_light
+            ThemeManager.THEME_GREEN -> R.drawable.green_gear_light
+            ThemeManager.THEME_PURPLE -> R.drawable.purple_gear_light
+            ThemeManager.THEME_CYAN -> R.drawable.cyan_gear_light
+            else -> R.drawable.light_gear_light
+        }
+    }
+}

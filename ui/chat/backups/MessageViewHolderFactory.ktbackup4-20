@@ -1,0 +1,204 @@
+package com.example.lilotest.ui.chat
+
+import android.content.Context
+import android.content.res.ColorStateList
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.cardview.widget.CardView
+import androidx.core.content.ContextCompat
+import com.example.lilotest.R
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.ui.theme.ThemeManager
+
+/**
+ * Factory class for creating and styling MessageViewHolders based on the current theme
+ */
+class MessageViewHolderFactory(private val context: Context) {
+
+    private val themeManager = ThemeManager(context)
+
+    /**
+     * Creates a ViewHolder for the appropriate message type
+     */
+    fun create(parent: ViewGroup, viewType: Int): MessageViewHolder {
+        val layoutId = when (viewType) {
+            VIEW_TYPE_USER -> R.layout.item_message_user
+            VIEW_TYPE_BOT_WITH_IMAGE -> R.layout.item_message_bot_with_image
+            VIEW_TYPE_BOT -> R.layout.item_message_bot
+            else -> R.layout.item_message_error
+        }
+
+        val view = LayoutInflater.from(parent.context)
+            .inflate(layoutId, parent, false)
+        
+        // Style view based on theme
+        applyThemeToView(view, viewType)
+        
+        return MessageViewHolder(view)
+    }
+
+    /**
+     * Applies the current theme styles to the view
+     */
+    private fun applyThemeToView(view: View, viewType: Int) {
+        val currentTheme = themeManager.getCurrentTheme()
+        
+        when (viewType) {
+            VIEW_TYPE_USER -> styleUserMessage(view, currentTheme)
+            VIEW_TYPE_BOT, VIEW_TYPE_BOT_WITH_IMAGE -> styleBotMessage(view, currentTheme)
+            VIEW_TYPE_ERROR -> styleErrorMessage(view, currentTheme)
+        }
+    }
+
+    private fun styleUserMessage(view: View, theme: String) {
+        // Get the card view
+        val cardView = view as? CardView
+        
+        // Get text components
+        val messageContent = view.findViewById<TextView>(R.id.message_content)
+        val timestamp = view.findViewById<TextView>(R.id.message_timestamp)
+        
+        // Apply theme colors based on the specification
+        when (theme) {
+            ThemeManager.THEME_LIGHT -> {
+                // Light theme: dark grey background, white text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.light_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.light_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.light_user_msg_text))
+            }
+            ThemeManager.THEME_DARK -> {
+                // Dark theme: white background, black text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.dark_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.dark_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.dark_user_msg_text))
+            }
+            ThemeManager.THEME_BROWN -> {
+                // Brown theme: dark brown background, light khaki text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.brown_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.brown_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.brown_user_msg_text))
+            }
+            ThemeManager.THEME_YELLOW -> {
+                // Yellow theme: dark yellow background, light yellow text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.yellow_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.yellow_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.yellow_user_msg_text))
+            }
+            ThemeManager.THEME_RED -> {
+                // Red theme: dark red background, light pink text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.red_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.red_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.red_user_msg_text))
+            }
+            ThemeManager.THEME_GREEN -> {
+                // Green theme: dark green background, light green text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.green_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.green_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.green_user_msg_text))
+            }
+            ThemeManager.THEME_PURPLE -> {
+                // Purple theme: dark purple background, light purple text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.purple_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.purple_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.purple_user_msg_text))
+            }
+            ThemeManager.THEME_CYAN -> {
+                // Cyan theme: dark cyan background, light cyan text
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.cyan_user_msg_bg))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.cyan_user_msg_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.cyan_user_msg_text))
+            }
+        }
+    }
+
+    private fun styleBotMessage(view: View, theme: String) {
+        // Get the card view
+        val cardView = view as? CardView
+    
+        // Get text components
+        val messageContent = view.findViewById<TextView>(R.id.message_content)
+        val timestamp = view.findViewById<TextView>(R.id.message_timestamp)
+    
+        // Apply theme colors based on the selected theme
+        when (theme) {
+            ThemeManager.THEME_LIGHT -> {
+                // Light theme (white background, black text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.light_background))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.light_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.light_text))
+            }
+            ThemeManager.THEME_DARK -> {
+                // Dark theme (black background, white text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.dark_background))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.dark_text))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.dark_text))
+            }
+            ThemeManager.THEME_BROWN -> {
+                // Brown theme (light khaki background, dark brown text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.brown_light))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.brown_dark))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.brown_dark))
+            }
+            ThemeManager.THEME_YELLOW -> {
+                // Yellow theme (light yellow background, dark yellow text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.yellow_light))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.yellow_dark))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.yellow_dark))
+            }
+            ThemeManager.THEME_RED -> {
+                // Red theme (light pink background, dark red/wine red text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.red_light))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.red_dark))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.red_dark))
+            }
+            ThemeManager.THEME_GREEN -> {
+                // Green theme (light green background, dark green/british racing green text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.green_light))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.green_dark))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.green_dark))
+            }
+            ThemeManager.THEME_PURPLE -> {
+                // Purple theme (light purple background, dark purple text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.purple_light))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.purple_dark))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.purple_dark))
+            }
+            ThemeManager.THEME_CYAN -> {
+                // Cyan theme (light cyan background, dark cyan/blue text)
+                cardView?.setCardBackgroundColor(ContextCompat.getColor(context, R.color.cyan_light))
+                messageContent?.setTextColor(ContextCompat.getColor(context, R.color.cyan_dark))
+                timestamp?.setTextColor(ContextCompat.getColor(context, R.color.cyan_dark))
+            }
+        }
+    }
+
+    /**
+     * Styles an error message based on the theme
+     */
+    private fun styleErrorMessage(view: View, theme: String) {
+        // Error messages should remain red for visibility regardless of theme
+        // But we might adjust the shade based on the theme
+        val messageContent = view.findViewById<TextView>(R.id.message_content)
+        val timestamp = view.findViewById<TextView>(R.id.message_timestamp)
+        
+        messageContent?.setTextColor(ContextCompat.getColor(context, android.R.color.white))
+        messageContent?.setBackgroundResource(R.drawable.bg_message_error)
+        
+        // Timestamp can be themed
+        when (theme) {
+            ThemeManager.THEME_DARK -> timestamp?.setTextColor(ContextCompat.getColor(context, R.color.white))
+            else -> timestamp?.setTextColor(ContextCompat.getColor(context, R.color.light_text))
+        }
+    }
+
+    companion object {
+        const val VIEW_TYPE_USER = 0
+        const val VIEW_TYPE_BOT = 1
+        const val VIEW_TYPE_ERROR = 2
+        const val VIEW_TYPE_BOT_WITH_IMAGE = 3
+    }
+}

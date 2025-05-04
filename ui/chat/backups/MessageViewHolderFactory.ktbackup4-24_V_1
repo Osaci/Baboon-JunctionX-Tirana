@@ -1,0 +1,47 @@
+package com.example.lilotest.ui.chat
+
+import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import com.example.lilotest.R
+import com.example.lilotest.ui.theme.ThemeManager
+
+/**
+ * Factory class for creating and styling MessageViewHolders based on the current theme
+ */
+class MessageViewHolderFactory(private val context: Context) {
+
+    private val themeManager = ThemeManager(context)
+
+    /**
+     * Creates a ViewHolder for the appropriate message type
+     */
+    fun create(parent: ViewGroup, viewType: Int): MessageViewHolder {
+        val layoutId = when (viewType) {
+            VIEW_TYPE_USER -> R.layout.item_message_user
+            VIEW_TYPE_BOT_WITH_IMAGE -> R.layout.item_message_bot_with_image
+            VIEW_TYPE_BOT -> R.layout.item_message_bot
+            else -> R.layout.item_message_error
+        }
+
+        val view = LayoutInflater.from(parent.context)
+            .inflate(layoutId, parent, false)
+        
+        // Style view based on theme using ThemeManager
+        when (viewType) {
+            VIEW_TYPE_USER -> themeManager.styleUserMessage(view)
+            VIEW_TYPE_BOT, VIEW_TYPE_BOT_WITH_IMAGE -> themeManager.styleBotMessage(view)
+            VIEW_TYPE_ERROR -> themeManager.styleErrorMessage(view)
+        }
+        
+        return MessageViewHolder(view)
+    }
+
+    companion object {
+        const val VIEW_TYPE_USER = 0
+        const val VIEW_TYPE_BOT = 1
+        const val VIEW_TYPE_ERROR = 2
+        const val VIEW_TYPE_BOT_WITH_IMAGE = 3
+    }
+}

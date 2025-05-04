@@ -1,0 +1,1172 @@
+
+
+
+id 1. "message 2 edited"
+id 2. "message 1"
+id 3. response to "message 1"
+id 4. "message 2 edited"
+id 5. "response to "message 2 edited"
+id 6. "chain 2 message 3"
+id 7  response to "chain 2 message 3"
+
+the current issue when user performs the following steps:
+
+With current setup
+the user interaction and result:
+
+1. user sends message "Message 1" into chain 1: added to chain 1
+2. user sends message "message 2" into chain 1: added to chain 1
+3. user edits message 2 with "message 2 edited": chain 2 is created and message "edited message 2" is added into chain 2: edit button displays correctly with navigation arrows into chain 2 "message 2 edited"
+4. user sends message "chain 2 message 3" into chain 2: added into chain 2: No nav arrows which is correct
+5. user navigates back to chain 1: chain 1 messages are shown. the next navigation button is shown only on "Message 2" which is correct.
+6. user then navigates back to chain 2: the back navigation button is shown only on "Message 2 edited" which is correct
+7. user edits message "chain 2 message 3": The chain 3 is created and message is added: However the edit counter only displays on the message "chain 2 message 3 edited" with counter 3/3 even though the message has been only edited once and should show counter of 2/2. The message "message 2 edited" does not show edit navigations. Message "message 2 edited" should display navigation buttons with counter 2/2.
+8. user navigates back to chain 2: the edit button only displays on the message "message 2 edited" with globular counter of 2/3. It should display counter 2/2. The message "chain 2 message 3" should display counter 1/2.
+
+Currently there is a global chain version handling. When user edits a message in any given chain the amount of chains is displayed in the edit counter. The counter logic should only display the amount of edits in that particular message. e.g. 
+There should be a logic implemented where the counter displays the edit count only in the edited message (now the message in chain 2 would display 1/2 and in created chain 3 it should display 2/2 (not the amount of global existing chains like in the current logic.
+
+
+Logcat logs:
+
+Step 1.
+   D  Message 1: chainId=bb09727a-dd98-49c0-9ad7-d7070b2ebfb4, threadId=a100a530-aa3f-4ab5-a43b-14608d97ec18
+2025-04-28 03:03:32.848 15184-15184 ThreadChainLogger       com.example.lilotest                 D  ======== THREAD STATE LOG ========
+2025-04-28 03:03:32.848 15184-15184 ThreadChainLogger       com.example.lilotest                 D  Total threads: 1
+2025-04-28 03:03:32.848 15184-15184 ThreadChainLogger       com.example.lilotest                 D  Currently visible messages: 2
+2025-04-28 03:03:32.848 15184-15184 ThreadChainLogger       com.example.lilotest                 D  Thread: a100a530-aa3f-4ab5-a43b-14608d97ec18 (1 versions, current: 0)
+2025-04-28 03:03:32.848 15184-15184 ThreadChainLogger       com.example.lilotest                 D    Version 0 [ACTIVE]:
+2025-04-28 03:03:32.848 15184-15184 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Hello 1...
+2025-04-28 03:03:32.849 15184-15184 ThreadChainLogger       com.example.lilotest                 D    Chains (1):
+2025-04-28 03:03:32.849 15184-15184 ThreadChainLogger       com.example.lilotest                 D      Chain: bb09727a-dd98-49c0-9ad7-d7070b2ebfb4 [ACTIVE] (from version: 0)
+2025-04-28 03:03:32.849 15184-15184 ThreadChainLogger       com.example.lilotest                 D        Messages (2):
+2025-04-28 03:03:32.850 15184-15184 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Hello 1...
+2025-04-28 03:03:32.850 15184-15184 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Hello! How can I help you toda...
+2025-04-28 03:03:32.850 15184-15184 ThreadChainLogger       com.example.lilotest                 D  ================================
+
+
+Step 2.
+D  Message 3: chainId=bb09727a-dd98-49c0-9ad7-d7070b2ebfb4, threadId=a100a530-aa3f-4ab5-a43b-14608d97ec18
+2025-04-28 03:03:39.963 15184-15184 ThreadChainLogger       com.example.lilotest                 D  ======== THREAD STATE LOG ========
+2025-04-28 03:03:39.963 15184-15184 ThreadChainLogger       com.example.lilotest                 D  Total threads: 1
+2025-04-28 03:03:39.963 15184-15184 ThreadChainLogger       com.example.lilotest                 D  Currently visible messages: 4
+2025-04-28 03:03:39.963 15184-15184 ThreadChainLogger       com.example.lilotest                 D  Thread: a100a530-aa3f-4ab5-a43b-14608d97ec18 (1 versions, current: 0)
+2025-04-28 03:03:39.963 15184-15184 ThreadChainLogger       com.example.lilotest                 D    Version 0 [ACTIVE]:
+2025-04-28 03:03:39.966 15184-15184 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Hello 1...
+2025-04-28 03:03:39.967 15184-15184 ThreadChainLogger       com.example.lilotest                 D    Chains (1):
+2025-04-28 03:03:39.967 15184-15184 ThreadChainLogger       com.example.lilotest                 D      Chain: bb09727a-dd98-49c0-9ad7-d7070b2ebfb4 [ACTIVE] (from version: 0)
+2025-04-28 03:03:39.967 15184-15184 ThreadChainLogger       com.example.lilotest                 D        Messages (4):
+2025-04-28 03:03:39.967 15184-15184 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Hello 1...
+2025-04-28 03:03:39.967 15184-15184 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Hello! How can I help you toda...
+2025-04-28 03:03:39.971 15184-15184 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: hello 2...
+2025-04-28 03:03:39.971 15184-15184 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Hello there!  How can I help y...
+2025-04-28 03:03:39.971 15184-15184 ThreadChainLogger       com.example.lilotest                 D  ================================
+
+
+Step 3.
+2025-04-28 04:10:53.511 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ======== THREAD STATE LOG ========
+2025-04-28 04:10:53.511 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Total threads: 1
+2025-04-28 04:10:53.511 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Currently visible messages: 4
+2025-04-28 04:10:53.511 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Thread: 86b1599b-2191-4219-b909-c6ae69e66d07 (2 versions, current: 1)
+2025-04-28 04:10:53.511 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 0 [inactive]:
+2025-04-28 04:10:53.512 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Message 1...
+2025-04-28 04:10:53.514 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 1 [ACTIVE]:
+2025-04-28 04:10:53.517 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: message 2 edited...
+2025-04-28 04:10:53.517 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Bot msg [VISIBLE]: Please provide me with message...
+2025-04-28 04:10:53.517 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Chains (2):
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: f6c34428-19e7-4102-a527-327cc9c34611 [inactive] (from version: 0)
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (4):
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [hidden]: message 2...
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [hidden]: Please provide me with the con...
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: d432895b-a195-4ba6-b8a1-da393f86999c [ACTIVE] (from version: 1)
+2025-04-28 04:10:53.518 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (4):
+2025-04-28 04:10:53.519 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:10:53.519 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:10:53.519 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: message 2 edited...
+2025-04-28 04:10:53.519 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Please provide me with message...
+2025-04-28 04:10:53.519 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ================================
+
+
+Step 4.
+2025-04-28 04:11:32.151 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ======== THREAD STATE LOG ========
+2025-04-28 04:11:32.153 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Total threads: 1
+2025-04-28 04:11:32.153 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Currently visible messages: 6
+2025-04-28 04:11:32.153 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Thread: 86b1599b-2191-4219-b909-c6ae69e66d07 (2 versions, current: 1)
+2025-04-28 04:11:32.153 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 0 [inactive]:
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Message 1...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 1 [ACTIVE]:
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: message 2 edited...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Bot msg [VISIBLE]: Please provide me with message...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Chains (2):
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: f6c34428-19e7-4102-a527-327cc9c34611 [inactive] (from version: 0)
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (4):
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [hidden]: message 2...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [hidden]: Please provide me with the con...
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: d432895b-a195-4ba6-b8a1-da393f86999c [ACTIVE] (from version: 1)
+2025-04-28 04:11:32.154 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (6):
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: message 2 edited...
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Please provide me with message...
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D          5. USER [VISIBLE]: Chain 2 message 3...
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D          6. BOT [VISIBLE]: Please provide me with the con...
+2025-04-28 04:11:32.155 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ================================
+
+
+Step 5.
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ======== THREAD STATE LOG ========
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Total threads: 1
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Currently visible messages: 6
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Thread: 86b1599b-2191-4219-b909-c6ae69e66d07 (3 versions, current: 2)
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 0 [inactive]:
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Message 1...
+2025-04-28 04:11:53.629 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 1 [inactive]:
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: message 2 edited...
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Bot msg [VISIBLE]: Please provide me with message...
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 2 [ACTIVE]:
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Chain 2 message 3 edited...
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Bot msg [VISIBLE]: Please provide me with the con...
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Chains (3):
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: f6c34428-19e7-4102-a527-327cc9c34611 [inactive] (from version: 0)
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (4):
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:11:53.630 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:11:53.631 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [hidden]: message 2...
+2025-04-28 04:11:53.631 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [hidden]: Please provide me with the con...
+2025-04-28 04:11:53.631 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: d432895b-a195-4ba6-b8a1-da393f86999c [inactive] (from version: 1)
+2025-04-28 04:11:53.631 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (6):
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: message 2 edited...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Please provide me with message...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          5. USER [hidden]: Chain 2 message 3...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          6. BOT [hidden]: Please provide me with the con...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: c85c1e6a-37e6-473b-846b-e59a027cf47f [ACTIVE] (from version: 2)
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (6):
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:11:53.632 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:11:53.633 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: message 2 edited...
+2025-04-28 04:11:53.633 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Please provide me with message...
+2025-04-28 04:11:53.633 15775-15775 ThreadChainLogger       com.example.lilotest                 D          5. USER [VISIBLE]: Chain 2 message 3 edited...
+2025-04-28 04:11:53.633 15775-15775 ThreadChainLogger       com.example.lilotest                 D          6. BOT [VISIBLE]: Please provide me with the con...
+2025-04-28 04:11:53.633 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ================================
+2025-04-28 04:11:51.411 15775-15775 MessageAdapter          com.example.lilotest                 D  Navigation buttons state: Prev enabled=true, Next enabled=false
+
+
+Step 6.
+2025-04-28 04:27:28.325 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ======== THREAD STATE LOG ========
+2025-04-28 04:27:28.325 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Total threads: 1
+2025-04-28 04:27:28.325 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Currently visible messages: 6
+2025-04-28 04:27:28.325 15775-15775 ThreadChainLogger       com.example.lilotest                 D  Thread: 86b1599b-2191-4219-b909-c6ae69e66d07 (3 versions, current: 1)
+2025-04-28 04:27:28.325 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 0 [inactive]:
+2025-04-28 04:27:28.325 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: Message 1...
+2025-04-28 04:27:28.328 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 1 [ACTIVE]:
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [VISIBLE]: message 2 edited...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Bot msg [VISIBLE]: Please provide me with message...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Version 2 [inactive]:
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D      User msg [hidden]: Chain 2 message 3 edited...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Bot msg [hidden]: Please provide me with the con...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D    Chains (3):
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: f6c34428-19e7-4102-a527-327cc9c34611 [inactive] (from version: 0)
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (4):
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [hidden]: message 2...
+2025-04-28 04:27:28.329 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [hidden]: Please provide me with the con...
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: d432895b-a195-4ba6-b8a1-da393f86999c [ACTIVE] (from version: 1)
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (6):
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: message 2 edited...
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Please provide me with message...
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D          5. USER [VISIBLE]: Chain 2 message 3...
+2025-04-28 04:27:28.330 15775-15775 ThreadChainLogger       com.example.lilotest                 D          6. BOT [VISIBLE]: Please provide me with the con...
+2025-04-28 04:27:28.331 15775-15775 ThreadChainLogger       com.example.lilotest                 D      Chain: c85c1e6a-37e6-473b-846b-e59a027cf47f [inactive] (from version: 2)
+2025-04-28 04:27:28.331 15775-15775 ThreadChainLogger       com.example.lilotest                 D        Messages (6):
+2025-04-28 04:27:28.331 15775-15775 ThreadChainLogger       com.example.lilotest                 D          1. USER [VISIBLE]: Message 1...
+2025-04-28 04:27:28.331 15775-15775 ThreadChainLogger       com.example.lilotest                 D          2. BOT [VISIBLE]: Please provide Message 1. I ne...
+2025-04-28 04:27:28.335 15775-15775 ThreadChainLogger       com.example.lilotest                 D          3. USER [VISIBLE]: message 2 edited...
+2025-04-28 04:27:28.335 15775-15775 ThreadChainLogger       com.example.lilotest                 D          4. BOT [VISIBLE]: Please provide me with message...
+2025-04-28 04:27:28.337 15775-15775 ThreadChainLogger       com.example.lilotest                 D          5. USER [hidden]: Chain 2 message 3 edited...
+2025-04-28 04:27:28.339 15775-15775 ThreadChainLogger       com.example.lilotest                 D          6. BOT [hidden]: Please provide me with the con...
+2025-04-28 04:27:28.339 15775-15775 ThreadChainLogger       com.example.lilotest                 D  ================================
+2025-04-28 04:27:28.370 15775-15775 MessageAdapter          com.example.lilotest                 D  Navigation buttons state: Prev enabled=true, Next enabled=true
+
+
+Can you check for syntax errors etc.
+
+ChatViewModel.kt
+
+    fun editMessage(messageId: String, newContent: String) {
+        Log.d(TAG, "Starting edit for message $messageId")
+        val currentMessages = _messages.value?.toMutableList() ?: return
+
+        // Find the message to edit
+        val messageIndex = currentMessages.indexOfFirst { it.id == messageId }
+        if (messageIndex == -1) {
+            Log.e(TAG, "Could not find message with ID: $messageId")
+            return
+        }
+
+        val messageToEdit = currentMessages[messageIndex]
+        val threadId = messageToEdit.threadId ?: return
+
+        Log.d(TAG, "Editing message in thread $threadId")
+        
+        // Track active thread for navigation
+        activeThreadId = threadId
+
+        // Get the thread or create one if it doesn't exist
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "Creating new thread for $threadId")
+            val newThread = MessageThread(threadId)
+            messageThreads[threadId] = newThread
+            newThread
+        }
+
+        Log.d(TAG, "Current thread state before edit: " +
+              "versions=${thread.versions.size}, " +
+              "currentIndex=${thread.currentVersionIndex}")
+
+        // Create a new message version
+        val editedUserMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = newContent,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            hasVersionHistory = true,
+            versionNumber = thread.versions.size
+        )
+
+        // Add the new version to the thread
+        val newVersionIndex = thread.addVersion(editedUserMessage)
+        Log.d(TAG, "Added version at index $newVersionIndex. Total versions now: ${thread.versions.size}")
+
+        markAllThreadVersionsWithHistory(threadId)
+
+        // Create new chain for edited version
+        val newChainId = thread.createNewChain()
+        Log.d(TAG, "Created new chain $newChainId for edited message")
+
+        // Find previous chain to copy messages from
+        val previousChainId = thread.chains.keys
+            .filter { it != newChainId }
+            .maxByOrNull { thread.chains[it]?.timestamp ?: Date(0) }
+
+        val messagesToInclude = mutableListOf<Message>()
+        val previousChain = previousChainId?.let { thread.chains[it] }
+ 
+        if (previousChain != null) {
+            Log.d(TAG, "Previous chain found: $previousChainId with ${previousChain.messages.size} messages")
+        
+            // Find the index of the message being edited in the previous chain
+            val originalMessageIndex = previousChain.messages.indexOfFirst { 
+                it.id == messageId || (it.type == MessageType.USER && it.content == messageToEdit.content)
+            }
+        
+            if (originalMessageIndex >= 0) {
+            Log.d(TAG, "Found original message at position $originalMessageIndex in previous chain")
+            
+                // Clear the data structures we'll use to track messages
+                val orderedMessages = mutableMapOf<Int, Message>()
+                thread.chains[newChainId]?.messages?.clear()
+            
+                // Copy messages BEFORE the edited message with their original positions
+                for (i in 0 until originalMessageIndex) {
+                    val msg = previousChain.messages[i].copy(chainId = newChainId)
+                    orderedMessages[i] = msg
+                    thread.addMessageToActiveChain(msg)
+                    Log.d(TAG, "Added previous message to new chain: ${msg.content?.take(20)}")
+                }
+            
+                // Add the edited message at the ORIGINAL position (replacing the old one)
+                val chainMessage = editedUserMessage.copy(chainId = newChainId)
+                orderedMessages[originalMessageIndex] = chainMessage
+                thread.addMessageToActiveChain(chainMessage)
+            
+                // DO NOT add the edited message at the beginning also!
+            
+                // Add messages to the visible list in correct order
+                messagesToInclude.addAll(orderedMessages.toSortedMap().values)
+            } else {
+                // If we can't find the original message, just add the edited message
+                val chainMessage = editedUserMessage.copy(chainId = newChainId)
+                messagesToInclude.add(chainMessage)
+                thread.addMessageToActiveChain(chainMessage)
+                Log.d(TAG, "Could not find original message in previous chain, adding only edited message")
+            }
+        } else {
+            // No previous chain, just add the edited message
+            Log.d(TAG, "No previous chain found")
+            val chainMessage = editedUserMessage.copy(chainId = newChainId)
+            messagesToInclude.add(chainMessage)
+            thread.addMessageToActiveChain(chainMessage)
+        }
+    
+        // Update the UI with preserved messages plus edited message
+        _messages.value = messagesToInclude
+
+        // Fetch a new response for the edited message
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending edited message: $newContent")
+                val response = repository.sendMessage(newContent)
+                Log.d(TAG, "Received response for edited message: $response")
+
+                // Create the new bot response
+                val newBotResponse = createBotResponseMessage(response, threadId).copy(
+                    versionNumber = newVersionIndex,
+                    hasVersionHistory = true,
+                    chainId = newChainId
+                )
+
+                // Update the thread with the new bot response
+                thread.updateCurrentVersion(botResponse = newBotResponse, updateChain = false)
+                thread.addMessageToActiveChain(newBotResponse)
+
+                // Add the new bot response to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(newBotResponse)
+                _messages.value = updatedMessages
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending edited message", e)
+
+                // Handle error
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId,
+                    versionNumber = newVersionIndex,
+                    hasVersionHistory = true,
+                    chainId = newChainId
+                )
+
+                // Update the thread with the error response
+                thread.updateCurrentVersion(botResponse = errorMessage, updateChain = false)
+                thread.addMessageToActiveChain(errorMessage)
+
+                // Add error to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(errorMessage)
+                _messages.value = updatedMessages
+            }
+        }
+    }
+
+    /**
+     * Navigate to specific version of a message thread
+     */
+    fun navigateToSpecificVersion(threadId: String, targetVersionIndex: Int): Boolean {
+        Log.d(TAG, "Attempting to navigate to previous version in thread $threadId")
+        val thread = messageThreads[threadId] ?: return false
+
+        // Validate target index
+        if (targetVersionIndex < 0 || targetVersionIndex >= thread.version.size) {
+            return false
+        }
+
+        // Set the current version index directly
+        thread.currentVersionIndex = targetVersionIndex
+
+        // Find or create a chain for this version
+        val chainsForVersion = thread.getChainsForVersion(targetVersionIndex)
+        val chainId = (chainsForVersion.isNotEmpty()) {
+            chainsForVersion.maxByOrNull { it.timestamp }?.chainId
+        } else {
+            thread.createNewChain()
+        }
+
+        // Switch to this chain
+        if {chainId != null) {
+            // Get messages from this chain
+            val chainMessages = thread.chains[chainId]?.messages ?: emptyList()
+            // Replace current messages from the messages in this chain
+            _messages.value = ArrayList(chainMessages)
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Navigate to the previous version of a message thread
+     */
+    fun navigateToPreviousVersion(threadId: String): Boolean {
+        Log.d(TAG, "Attempting to navigate to previous version in thread $threadId")
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "Thread not found")
+            return false
+        }
+
+        if (!thread.hasPreviousVersion()) {
+            Log.d(TAG, "No previous version available")
+            return false
+        }
+
+        val previousVersion = thread.moveToPreviousVersion() ?: return false
+
+        // Get the chain related to this thread
+        val chainId = thread.activeChainId ?: return false
+
+        return handleChainNavigation(chainId)
+    }
+
+    /**
+     * Navigate to the next version of a message thread
+     */
+    fun navigateToNextVersion(threadId: String): Boolean {
+        Log.d(TAG, "Attempting to navigate to next version in thread $threadId")
+        val thread = messageThreads[threadId] ?: run {
+            Log.d(TAG, "No next thread found")
+            return false
+        }
+
+        if (!thread.hasNextVersion()) {
+            Log.d(TAG, "No next version available")
+            return false
+        }
+ 
+        val nextVersion = thread.moveToNextVersion() ?: return false
+        // Get the chain related to this version
+        val chainId = thread.activeChainId ?: return false
+
+        return handleChainNavigation(chainId)
+
+    }
+
+    private fun markAllThreadVersionsWithHistory(threadId: String) {
+        val thread = messageThreads[threadId] ?: return
+    
+        // Only mark with history if there's more than one version
+        if (thread.versions.size <= 1) return
+    
+        Log.d(TAG, "Marking all ${thread.versions.size} versions in thread $threadId with hasVersionHistory")
+    
+        // Update all versions with hasVersionHistory flag
+        for (i in thread.versions.indices) {
+            val version = thread.versions[i]
+        
+            // Update user message
+            val updatedUserMessage = version.userMessage.copy(hasVersionHistory = true)
+        
+            // Update bot response if it exists
+            val updatedBotResponse = version.botResponse?.copy(hasVersionHistory = true)
+        
+            // Replace the version
+            thread.versions[i] = MessageVersion(updatedUserMessage, updatedBotResponse, version.timestamp)
+        }
+    }
+
+    private fun validateChain(chainId: String) {
+        val threadId = activeThreadId ?: return
+        val thread = messageThreads[threadId] ?: return
+        val chain = thread.chains[chainId] ?: return
+
+        // Remove duplicate bot responses
+        val uniqueMessages = mutableListOf<Message>()
+        val seenBotResponses = mutableSetOf<String>()
+        
+        chain.messages.forEach { message ->
+            if (message.type == MessageType.BOT) {
+                val content = message.content ?: ""
+                if (!seenBotResponses.contains(content)) {
+                    seenBotResponses.add(content)
+                    uniqueMessages.add(message)
+                } else {
+                    Log.d(TAG, "Removed duplicate bot response: ${content.take(20)}...")
+                }
+            } else {
+                uniqueMessages.add(message)
+            }
+        }
+        // Only replace if we removed messages
+        if (uniqueMessages.size < chain.messages.size) {
+            Log.d(TAG, "Chain validation removed ${chain.messages.size - uniqueMessages.size} duplicate messages")
+            chain.messages.clear()
+            chain.messages.addAll(uniqueMessages)
+        }
+    }
+
+    /**
+     * Ensures chain navigation updates UI correctly
+     */
+    private fun handleChainNavigation(chainId: String): Boolean {
+        val threadId = activeThreadId ?: return false
+        val thread = messageThreads[threadId] ?: return false
+        val chain = thread.chains[chainId] ?: return false
+    
+        // Set the active chain
+        thread.activeChainId = chainId
+    
+        // Get messages from this chain
+        val chainMessages = chain.messages.toList()
+    
+        // Important: Create a new list to break reference to old list state
+        _messages.value = ArrayList(chainMessages)
+    
+        // Log the chain switch
+        Log.d(TAG, "Switched to chain $chainId with ${chainMessages.size} messages")
+    
+        return true
+    }
+
+    /**
+     * Updates visible messages to display the specified version's chain
+     */
+    fun switchToChain(threadId: String, chainId: String): Boolean { 
+        val thread = messageThreads[threadId] ?: return false
+
+        // Activate the requested chain
+        val chainMessages = thread.activateChain(chainId) ?: return false
+
+        // Update the UI with the messages from this chain
+        _messages.value = chainMessages
+        return true
+    }
+
+    fun getMessageThread(threadId: String): MessageThread? {
+        return messageThreads[threadId]
+    }
+
+    fun getMessageThreads(): Map<String, MessageThread> {
+        return messageThreads
+    }
+}
+
+
+Current implementation logic:
+
+MessageAdapter.kt
+package com.example.lilotest.ui.chat
+
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.text.style.TypefaceSpan
+import android.util.Base64
+import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
+import com.example.lilotest.R
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageThread
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.ui.theme.ThemeManager
+import io.github.kbiakov.codeview.CodeView
+import io.github.kbiakov.codeview.adapters.Options
+import io.github.kbiakov.codeview.highlight.ColorTheme
+import java.util.regex.Pattern
+
+class MessageAdapter( 
+    private val viewHolderFactory: MessageViewHolderFactory
+) : ListAdapter<Message, MessageViewHolder>(MessageDiffCallback()) {
+
+    @Deprecated("Use the constructor with a MessageViewHolderFactory parameter")
+    constructor() : this(throw IllegalStateException("MessageAdapter requires a viewHolderFactory"))
+    private var chatViewModel: ChatViewModel? = null
+    private val TAG = "MessageAdapter"
+    private val THEME_TAG = "ThemeDebug"
+    private var themeManager: ThemeManager? = null
+
+    private var versionNavigationListener: MessageVersionNavigationListener? = null
+
+    fun setChatViewModel(viewModel: ChatViewModel) {
+        this.chatViewModel = viewModel
+    }
+
+    fun setVersionNavigationListener(listener: MessageVersionNavigationListener) {
+        this.versionNavigationListener = listener
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
+
+        // Initialize theme manager if not already done
+        if (themeManager == null) {
+            themeManager = ThemeManager(parent.context)
+        }
+        
+        // Use the factory to create the ViewHolder
+        return viewHolderFactory.create(parent, viewType)
+    }
+
+    interface MessageVersionNavigationListener {
+        fun onPreviousVersion(threadId: String)
+        fun onNextVersion(threadId: String)
+    }
+
+    interface EditMessageListener {
+        fun onMessageEdited(messageId: String, newContent: String)
+    }
+
+    private var editMessageListener: EditMessageListener? = null
+
+    fun setEditMessageListener(listener: EditMessageListener) {
+        this.editMessageListener = listener
+    }
+
+    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
+        val message = getItem(position)
+
+        try {
+            // Initialize theme manager if not already done
+            if (themeManager == null) {
+                themeManager = ThemeManager(holder.itemView.context)
+            }
+            
+            // Use the factory to update the ViewHolder styling
+            val viewType = getItemViewType(position)
+            viewHolderFactory.updateStyle(holder, viewType)
+
+            // Get the message content safely
+            val content = message.content ?: ""
+
+            Log.d(TAG, "Processing message ID ${message.id}, content length: ${content.length}")
+
+            // Check for code blocks or tables
+            val hasSpecialBlocks = content.contains("```") || containsMarkdownTable(content)
+
+            if (hasSpecialBlocks) {
+                // Process content with special blocks
+                processMessageWithSpecialBlocks(content, holder, message)
+            } else {
+                // Use text response for other parts
+                val formattedText = formatTextWithoutCodeBlocks(content, holder.itemView.context)
+
+                // Make sure regular text view has content
+                holder.getContentTextView()?.apply {
+                    visibility = View.VISIBLE
+                    text = formattedText
+                }
+
+                // Set timestamp
+                holder.setTimestamp(message.timestamp)
+            }
+
+            if (viewType == MessageViewHolderFactory.VIEW_TYPE_USER) {
+                val threadId = message.threadId
+
+                val editButton = holder.itemView.findViewById<ImageButton>(R.id.edit_message_button)
+                val nextButton = holder.itemView.findViewById<ImageButton>(R.id.next_version_button)
+                val prevButton = holder.itemView.findViewById<ImageButton>(R.id.prev_version_button)
+                val versionCounterView = holder.itemView.findViewById<TextView>(R.id.version_counter)
+
+                // Get the user message text color from ThemeManager
+                val userMessageTextColor = themeManager?.getThemeColor(ThemeManager.ThemeColorType.USER_MESSAGE_TEXT) 
+                    ?: ContextCompat.getColor(holder.itemView.context, R.color.light_user_msg_text)
+                
+                // Set the button colors to match the user message text color
+                prevButton?.setColorFilter(userMessageTextColor)
+                nextButton?.setColorFilter(userMessageTextColor)
+                editButton?.setColorFilter(userMessageTextColor)
+                versionCounterView?.setTextColor(userMessageTextColor)
+
+                // Set click listener to show edit dialog
+                editButton.setOnClickListener {
+                    if (threadId != null) {
+                        showEditMessageDialog(holder.itemView.context, message)
+                    }
+                }
+           
+                // Default state - hide navigation buttons
+                prevButton?.visibility = View.GONE
+                nextButton?.visibility = View.GONE
+                versionCounterView?.visibility = View.GONE
+
+                Log.d(TAG, "hasVersionHistory ${message.hasVersionHistory}")
+                // Check thread information for version history
+
+                if (threadId != null) {
+                    Log.d(TAG, "Checking thread $threadId for version history")
+                    val thread = getMessageThreadInfo(threadId)
+
+
+                    if (thread != null && thread.versions.size > 1) {
+                        Log.d(TAG, "Thread found with ${thread.versions.size} versions. Current index: ${thread.currentVersionIndex}")
+
+                        // Find message that was edited
+                        val editedMessageIndex = if (thread.currentVersionIndex == 0) {
+
+                            // If in chain 1, find message which has edited version(s)
+                            val messageContent = message.content ?: ""
+
+                            val isEdited = thread.versions.any { version ->
+                                version.userMessage.content?.startsWith(messageContent.split(" ").firstOrNull() ?: "") == true &&
+                                version.userMessage.content != messageContent
+                            }
+
+                            if (isEdited) position else -1
+                        } else {
+                            // If we're in an edited chain, show navigation only on the edited message
+                            val editedMsgContent = thread.versions[thread.currentVersionIndex].userMessage.content
+ 
+                            // Find if current message is edited one
+                            if (message.content == editedMsgContent) position else -1
+                        }
+
+                        val currentVersionUserMsg = thread.versions[thread.currentVersionIndex].userMessage
+
+                        if (editedMessageIndex == position) {
+                            prevButton?.visibility = View.VISIBLE
+                            nextButton?.visibility = View.VISIBLE
+                            versionCounterView?.visibility = View.VISIBLE
+
+                            // Set version counter text
+                            versionCounterView?.text = "${thread.currentVersionIndex + 1}/${thread.versions.size}"
+                            // Log all versions for debugging
+                            thread.versions.forEachIndexed { index, version ->
+                                Log.d(TAG, "Version $index: UserMsg=${version.userMessage.content?.take(20)}..., " +
+                                    "BotMsg=${version.botResponse?.content?.take(20)}..., " +
+                                    "Current=${index == thread.currentVersionIndex}")
+                            }
+
+                            // Enable previous button if not at first version
+                            prevButton?.isEnabled = thread.currentVersionIndex > 0
+                            prevButton?.alpha = if (thread.currentVersionIndex > 0) 1.0f else 0.5f
+                        
+                            // Enable next button if not at last version
+                            nextButton?.isEnabled = thread.currentVersionIndex < thread.versions.size - 1
+                            nextButton?.alpha = if (thread.currentVersionIndex < thread.versions.size - 1) 1.0f else 0.5f
+
+                            // Set click listeners
+                            prevButton?.setOnClickListener {
+                                versionNavigationListener?.onPreviousVersion(threadId)
+                            }
+                
+                            nextButton?.setOnClickListener {
+                                versionNavigationListener?.onNextVersion(threadId)
+                            }
+                        }
+                        
+                        Log.d(TAG, "Navigation buttons state: " +
+                            "Prev enabled=${prevButton?.isEnabled}, " +
+                            "Next enabled=${nextButton?.isEnabled}")   
+                    } 
+                } else {
+                    Log.d(TAG, "No threads found")
+                }
+            } else {
+                // Hide navigation buttons for non-user messages
+                val prevButton = holder.itemView.findViewById<ImageButton>(R.id.prev_version_button)
+                val nextButton = holder.itemView.findViewById<ImageButton>(R.id.next_version_button)
+                val versionCounterView = holder.itemView.findViewById<TextView>(R.id.version_counter)                
+
+                prevButton?.visibility = View.GONE
+                nextButton?.visibility = View.GONE
+                versionCounterView?.visibility = View.GONE
+            }
+
+
+
+
+MessageChain.kt
+package com.example.lilotest.data.model
+
+import java.util.Date
+
+/**
+ * Represents a message chain that contains a sequence of messages
+ * created after a specific version of a user message
+ */
+data class MessageChain(
+    val chainId: String,
+    val fromVersionIndex: Int,
+    val messages: MutableList<Message> = mutableListOf(),
+    val timestamp: Date = Date()
+)
+
+/**
+ * Extension to MessageThread to support chains
+ */
+// Add these properties and methods to your MessageThread class
+/*
+    // Map of chainId to MessageChain
+    val chains: MutableMap<String, MessageChain> = mutableMapOf()
+    
+    // Current active chain that's being displayed
+    var activeChainId: String? = null
+    
+    /**
+     * Creates a new chain from the current version
+     */
+    fun createNewChain(sourceMsgIds: List<String>? = null): String {
+        val chainId = UUID.randomUUID().toString()
+        val currentVersion = getCurrentVersion() ?: return chainId
+    
+        // Create chain starting from current version
+        val chain = MessageChain(
+            chainId = chainId,
+            fromVersionIndex = currentVersionIndex
+        )
+    
+        // Add the user message from the current version
+        chain.messages.add(currentVersion.userMessage.copy(chainId = chainId))
+    
+        // Add the bot response if available
+        currentVersion.botResponse?.let { 
+            chain.messages.add(it.copy(chainId = chainId)) 
+        }
+    
+        // Store the chain
+        chains[chainId] = chain
+    
+        // Set as active chain
+        activeChainId = chainId
+    
+        return chainId
+    }
+    
+    /**
+     * Adds a message to the currently active chain
+     */
+    fun addMessageToActiveChain(message: Message): Boolean {
+        val chainId = activeChainId ?: return false
+        val chain = chains[chainId] ?: return false
+        
+        chain.messages.add(message.copy(chainId = chainId))
+        return true
+    }
+    
+    /**
+     * Sets the active chain and returns its messages
+     */
+    fun activateChain(chainId: String): List<Message>? {
+        if (!chains.containsKey(chainId)) return null
+        
+        activeChainId = chainId
+        return chains[chainId]?.messages
+    }
+    
+    /**
+     * Gets all chains that started from a specific version
+     */
+    fun getChainsForVersion(versionIndex: Int): List<MessageChain> {
+        return chains.values.filter { it.fromVersionIndex == versionIndex }
+    }
+*/
+
+
+MessageThreadLogger.kt
+package com.example.lilotest.ui.chat
+
+import android.util.Log
+import com.example.lilotest.data.model.MessageThread
+
+class MessageThreadLogger {
+    companion object {
+        private const val TAG = "ThreadChainLogger"
+        
+        fun logThreadState(
+            messageThreads: Map<String, MessageThread>,
+            currentMessages: List<com.example.lilotest.data.model.Message>
+        ) {
+            Log.d(TAG, "======== THREAD STATE LOG ========")
+            Log.d(TAG, "Total threads: ${messageThreads.size}")
+            Log.d(TAG, "Currently visible messages: ${currentMessages.size}")
+            
+            messageThreads.forEach { (threadId, thread) ->
+                Log.d(TAG, "Thread: $threadId (${thread.versions.size} versions, current: ${thread.currentVersionIndex})")
+                
+                // Log versions
+                thread.versions.forEachIndexed { index, version ->
+                    val isActive = if (index == thread.currentVersionIndex) "ACTIVE" else "inactive"
+                    Log.d(TAG, "  Version $index [$isActive]:")
+                    
+                    // Check if this version's message is visible
+                    val userMsgId = version.userMessage.id
+                    val isUserMsgVisible = currentMessages.any { it.id == userMsgId }
+                    Log.d(TAG, "    User msg [${if (isUserMsgVisible) "VISIBLE" else "hidden"}]: ${version.userMessage.content?.take(30) ?: "null"}...")
+                    
+                    // Log bot response if it exists
+                    version.botResponse?.let { botResponse ->
+                        val isBotMsgVisible = currentMessages.any { it.id == botResponse.id }
+                        Log.d(TAG, "    Bot msg [${if (isBotMsgVisible) "VISIBLE" else "hidden"}]: ${botResponse.content?.take(30) ?: "null"}...")
+                    }
+                }
+                
+                // Log chains
+                Log.d(TAG, "  Chains (${thread.chains.size}):")
+                thread.chains.forEach { (chainId, chain) ->
+                    val isActive = if (chainId == thread.activeChainId) "ACTIVE" else "inactive"
+                    Log.d(TAG, "    Chain: $chainId [${isActive}] (from version: ${chain.fromVersionIndex})")
+                    Log.d(TAG, "      Messages (${chain.messages.size}):")
+                    chain.messages.forEachIndexed { index, msg ->
+                        val isVisible = currentMessages.any { it.id == msg.id }
+                        Log.d(TAG, "        ${index+1}. ${msg.type} [${if (isVisible) "VISIBLE" else "hidden"}]: ${msg.content?.take(30) ?: "null"}...")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "================================")
+        }
+    }
+}
+
+
+
+MessageVersioning.kt
+package com.example.lilotest.data.model
+
+import android.util.Log
+import java.util.Date
+import java.util.UUID
+
+
+/**
+ * Represents a single version of a message with its response
+ */
+data class MessageVersion(
+    val userMessage: Message,
+    var botResponse: Message?,
+    val timestamp: Date = Date()
+)
+
+/**
+ * Represents a message thread with multiple versions and chains
+ */
+data class MessageThread(
+    val threadId: String,  // Unique identifier for the thread
+    val versions: MutableList<MessageVersion> = mutableListOf(),
+    var currentVersionIndex: Int = 0,  // Index of the current active version
+    
+    // Map of chainId to MessageChain
+    val chains: MutableMap<String, MessageChain> = mutableMapOf(),
+    
+    // Current active chain that's being displayed
+    var activeChainId: String? = null
+) {
+    fun addVersion(userMessage: Message, botResponse: Message? = null): Int {
+        val newVersion = MessageVersion(userMessage, botResponse)
+        versions.add(newVersion)
+        currentVersionIndex = versions.size - 1
+        
+        // For the first version, create an initial chain
+        if (versions.size == 1) {
+            createNewChain()
+        }
+        
+        return currentVersionIndex
+    }
+    
+    fun updateCurrentVersion(userMessage: Message? = null, botResponse: Message? = null, updateChain: Boolean = true) {
+        if (versions.isEmpty() || currentVersionIndex < 0 || currentVersionIndex >= versions.size) {
+            return
+        }
+        val currentVersion = versions[currentVersionIndex]
+        
+        userMessage?.let {
+            versions[currentVersionIndex] = currentVersion.copy(userMessage = it)
+        }
+        
+        botResponse?.let {
+            versions[currentVersionIndex] = versions[currentVersionIndex].copy(botResponse = it)
+            
+            if (updateChain) {
+                // Also update in active chain if it exists
+                activeChainId?.let { chainId ->
+                    val chain = chains[chainId]
+                    chain?.let { activeChain ->
+                        if (activeChain.messages.size >= 2) {
+                            // Update bot response in the chain (typically the second message)
+                            val updatedMessages = activeChain.messages.toMutableList()
+
+
+                            for (i in 1 until updatedMessages.size) {
+                                if (updatedMessages[i].type == MessageType.BOT) {
+                                    updatedMessages[i] = botResponse.copy(chainId = chainId)
+                                    break
+                                }
+                            }
+                            activeChain.messages.clear()
+                            activeChain.messages.addAll(updatedMessages)
+                        } else {
+                            // Add bot response to chain
+                            activeChain.messages.add(botResponse.copy(chainId = chainId))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    fun getCurrentVersion(): MessageVersion? {
+        return if (versions.isNotEmpty() && currentVersionIndex >= 0 && currentVersionIndex < versions.size) {
+            versions[currentVersionIndex]
+        } else {
+            null
+        }
+    }
+    
+    fun hasNextVersion(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun hasPreviousVersion(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun moveToNextVersion(): MessageVersion? {
+        if (hasNextVersion()) {
+            currentVersionIndex++
+            val nextVersion = getCurrentVersion()
+            
+            // When moving to next version, check if this version has chains
+            val chainsForVersion = getChainsForVersion(currentVersionIndex)
+            if (chainsForVersion.isNotEmpty()) {
+                // Use the most recent chain
+                activeChainId = chainsForVersion.maxByOrNull { it.timestamp }?.chainId
+            } else {
+                // Create a new chain for this version if none exists
+                createNewChain()
+            }
+            
+            return nextVersion
+        }
+        return null
+    }
+    
+    fun moveToPreviousVersion(): MessageVersion? {
+        if (hasPreviousVersion()) {
+            currentVersionIndex--
+            val prevVersion = getCurrentVersion()
+            
+            // When moving to previous version, check if this version has chains
+            val chainsForVersion = getChainsForVersion(currentVersionIndex)
+            if (chainsForVersion.isNotEmpty()) {
+                // Use the most recent chain
+                activeChainId = chainsForVersion.maxByOrNull { it.timestamp }?.chainId
+            } else {
+                // Create a new chain for this version if none exists
+                createNewChain()
+            }
+            
+            return prevVersion
+        }
+        return null
+    }
+
+    fun logVersions(tag: String) {
+        versions.forEachIndexed { index, version ->
+            val currentMarker = if (index == currentVersionIndex) " (CURRENT)" else ""
+            val userContent = version.userMessage.content?.take(20) ?: "null"
+            val botContent = version.botResponse?.content?.take(20) ?: "null"
+            Log.d(tag, "Version $index$currentMarker - User: $userContent..., Bot: $botContent...")
+        }
+    }
+
+    fun canNavigateBack(): Boolean {
+        return currentVersionIndex > 0
+    }
+    
+    fun canNavigateForward(): Boolean {
+        return currentVersionIndex < versions.size - 1
+    }
+    
+    fun getCurrentVersionNumber(): Int {
+        return currentVersionIndex + 1
+    }
+    
+    fun getTotalVersions(): Int {
+        return versions.size
+    }
+    
+    /**
+     * Creates a new chain from the current version
+     */
+    fun createNewChain(): String {
+        val chainId = UUID.randomUUID().toString()
+        val currentVersion = getCurrentVersion() ?: return chainId
+        
+        // Create chain starting from current version
+        val chain = MessageChain(
+            chainId = chainId,
+            fromVersionIndex = currentVersionIndex
+        )
+        
+        // Add the user message from the current version
+        chain.messages.add(currentVersion.userMessage.copy(chainId = chainId))
+        
+        // Add the bot response if available
+        currentVersion.botResponse?.let { 
+            chain.messages.add(it.copy(chainId = chainId)) 
+        }
+        
+        // Store the chain
+        chains[chainId] = chain
+        
+        // Set as active chain
+        activeChainId = chainId
+        
+        return chainId
+    }
+    
+    /**
+     * Adds a message to the currently active chain
+     */
+    fun addMessageToActiveChain(message: Message): Boolean {
+        val chainId = activeChainId ?: return false
+        val chain = chains[chainId] ?: return false
+        
+        chain.messages.add(message.copy(chainId = chainId))
+        return true
+    }
+    
+    /**
+     * Sets the active chain and returns its messages
+     */
+    fun activateChain(chainId: String): List<Message>? {
+        if (!chains.containsKey(chainId)) return null
+        
+        activeChainId = chainId
+        return chains[chainId]?.messages
+    }
+    
+    /**
+     * Gets all chains that started from a specific version
+     */
+    fun getChainsForVersion(versionIndex: Int): List<MessageChain> {
+        return chains.values.filter { it.fromVersionIndex == versionIndex }
+    }
+}

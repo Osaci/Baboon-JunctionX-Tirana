@@ -1,0 +1,402 @@
+package com.example.lilotest.ui.chat
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageThread
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.data.model.MessageVersion
+import com.example.lilotest.data.remote.MessageRepository
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.UUID
+import android.util.Log
+
+class ChatViewModel : ViewModel() {
+
+    private val TAG = "ChatViewModel"
+    private val repository = MessageRepository()
+
+    private val _messages = MutableLiveData<List<Message>>(emptyList())
+    val messages: LiveData<List<Message>> = _messages
+    
+    // Store message threads for version history
+    private val messageThreads = mutableMapOf<String, MessageThread>()
+    
+    // Track the active thread for navigation operations
+    private var activeThreadId: String? = null
+
+    fun sendMessage(content: String) {
+        val threadId = UUID.randomUUID().toString()
+        val currentMessages = _messages.value?.toMutableList() ?: mutableListOf()
+
+        // Create user message
+        val userMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = content,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            versionNumber = 0
+        )
+        
+        // Create thread to track versions
+        val messageThread = MessageThread(threadId)
+        messageThread.addVersion(userMessage)
+        messageThreads[threadId] = messageThread
+        
+        // Add user message to the visible messages list
+        currentMessages.add(userMessage)
+        _messages.value = currentMessages
+
+        // Send message to the server
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending message: $content")
+                val response = repository.sendMessage(content)
+                Log.d(TAG, "Received response: $response")
+
+                // Create and add bot response to the thread
+                val botResponse = createBotResponseMessage(response, threadId)
+                
+                // Update the thread with the bot response
+                messageThreads[threadId]?.updateCurrentVersion(botResponse = botResponse)
+                
+                // Add bot response to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(botResponse)
+                _messages.value = updatedMessages
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending message", e)
+
+                // Handle error 
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId
+                )
+                
+                // Update the thread with the error response
+                messageThreads[threadId]?.updateCurrentVersion(botResponse = errorMessage)
+                
+                // Add error to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(errorMessage)
+                _messages.value = updatedMessages
+            }
+        }
+    }
+
+    private fun createBotResponseMessage(responseText: String, threadId: String): Message {
+        // Check for image url prefix
+        if (responseText.contains("!IMAGEURL!")) {
+            Log.d(TAG, "Found image URL prefix")
+            val parts = responseText.split("!IMAGEURL!")
+            val contentText = parts[0].trim()
+            val imageUrl = parts[1].trim()
+
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageUrl = imageUrl,
+                threadId = threadId
+            )
+        }
+        // Check for image data prefix
+        else if (responseText.contains("!IMAGEDATA!")) {
+            Log.d(TAG, "Found image data prefix")
+            val parts = responseText.split("!IMAGEDATA!")
+            val contentText = parts[0].trim()
+            val imageData = parts[1].trim()
+
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageData = imageData,
+                threadId = threadId
+            )
+        }
+        //Regular text response
+        else {
+            return Message(
+                id = System.currentTimeMillis().toString(),
+                content = responseText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                threadId = threadId
+            )
+        }
+    }
+
+    fun editMessage(messageId: String, newContent: String) {
+        val currentMessages = _messages.value?.toMutableList() ?: return
+
+        // Find the message to edit
+        val messageIndex = currentMessages.indexOfFirst { it.id == messageId }
+        if (messageIndex == -1) {
+            Log.e(TAG, "Could not find message with ID: $messageId")
+            return
+        }
+
+        val messageToEdit = currentMessages[messageIndex]
+        val threadId = messageToEdit.threadId
+        
+        if (threadId == null) {
+            Log.e(TAG, "Message has no thread ID")
+            return
+        }
+
+        // Track active thread for navigation
+        activeThreadId = threadId
+        
+        // Get the thread or create one if it doesn't exist (shouldn't happen)
+        val thread = messageThreads[threadId] ?: run {
+            val newThread = MessageThread(threadId)
+            messageThreads[threadId] = newThread
+            newThread
+        }
+        
+        // Create a new message version
+        val editedUserMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = newContent,
+            type = MessageType.USER,
+            timestamp = Date(),
+            threadId = threadId,
+            hasVersionHistory = true,  // Always true for edited messages
+            versionNumber = thread.versions.size
+        )
+        
+        // Add the new version to the thread
+        val newVersionIndex = thread.addVersion(editedUserMessage)
+        
+        // Find any existing bot response to this user message
+        var botResponseIndex = -1
+        if (messageIndex + 1 < currentMessages.size && 
+            currentMessages[messageIndex + 1].type == MessageType.BOT &&
+            currentMessages[messageIndex + 1].threadId == threadId) {
+            botResponseIndex = messageIndex + 1
+        }
+        
+        // Mark the previous version as not current AND update hasVersionHistory
+        currentMessages[messageIndex] = currentMessages[messageIndex].copy(
+            isCurrentVersion = false,
+            hasVersionHistory = true  // This message now has edit history
+        )
+        
+        // If there's a bot response, mark it as not current too
+        if (botResponseIndex != -1) {
+            currentMessages[botResponseIndex] = currentMessages[botResponseIndex].copy(
+                isCurrentVersion = false,
+                hasVersionHistory = true  // This message now has edit history
+            )
+        }
+        
+        // Update the UI with the edited user message
+        currentMessages[messageIndex] = editedUserMessage
+        
+        // If there was a bot response, temporarily hide it
+        if (botResponseIndex != -1) {
+            currentMessages.removeAt(botResponseIndex)
+        }
+        
+        _messages.value = currentMessages
+
+        // Fetch a new response for the edited message
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending edited message: $newContent")
+                val response = repository.sendMessage(newContent)
+                Log.d(TAG, "Received response for edited message: $response")
+
+                // Get the current messages list
+                val updatedMessages = _messages.value?.toMutableList() ?: return@launch
+                
+                // Find user message again, as the indices might have changed
+                val updatedUserMessageIndex = updatedMessages.indexOfFirst { it.id == editedUserMessage.id }
+                if (updatedUserMessageIndex == -1) {
+                    Log.e(TAG, "Edited user message no longer exists in the list")
+                    return@launch
+                }
+
+                // Create the new bot response
+                val newBotResponse = createBotResponseMessage(response, threadId).copy(
+                    versionNumber = newVersionIndex, 
+                    hasVersionHistory = true
+                )
+                
+                // Update the thread with the new bot response
+                thread.updateCurrentVersion(botResponse = newBotResponse)
+                
+                // Add the new bot response to visible messages
+                if (updatedUserMessageIndex + 1 < updatedMessages.size) {
+                    // Insert after user message
+                    updatedMessages.add(updatedUserMessageIndex + 1, newBotResponse)
+                } else {
+                    // Add to the end
+                    updatedMessages.add(newBotResponse)
+                }
+                
+                _messages.value = updatedMessages
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending edited message", e)
+
+                // Handle error
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date(),
+                    threadId = threadId,
+                    versionNumber = newVersionIndex,
+                    hasVersionHistory = true
+                )
+                
+                // Update the thread with the error response
+                thread.updateCurrentVersion(botResponse = errorMessage)
+                
+                // Add error to visible messages
+                val updatedMessages = _messages.value?.toMutableList() ?: return@launch
+                val updatedUserMessageIndex = updatedMessages.indexOfFirst { it.id == editedUserMessage.id }
+                
+                if (updatedUserMessageIndex != -1) {
+                    if (updatedUserMessageIndex + 1 < updatedMessages.size) {
+                        updatedMessages.add(updatedUserMessageIndex + 1, errorMessage)
+                    } else {
+                        updatedMessages.add(errorMessage)
+                    }
+                    _messages.value = updatedMessages
+                }
+            }
+        }
+    }
+    
+
+    /**
+     * Marks all versions in a thread with hasVersionHistory flag
+     */
+    private fun markAllThreadVersionsWithHistory(threadId: String) {
+        val thread = messageThreads[threadId] ?: return
+    
+        // Skip if there's only one version (no history yet)
+        if (thread.versions.size <= 1) return
+    
+        // Update all versions in this thread
+        for (i in thread.versions.indices) {
+            val version = thread.versions[i]
+        
+            // Update user message
+            val updatedUserMessage = version.userMessage.copy(hasVersionHistory = true)
+            val botMessageVersion = version.botResponse
+            // Update bot response if it exists
+            val updatedBotResponse = botMessageVersion?.copy(hasVersionHistory = true)
+        
+            // Replace the version with updated messages
+            thread.versions[i] = MessageVersion(updatedUserMessage, updatedBotResponse, version.timestamp)
+        }
+        // Update visible messages in this thread
+        val currentMessages = _messages.value?.toMutableList() ?: return
+
+        // Find all visible messages belonging to this thread
+        for (i in currentMessages.indices) {
+            val message = currentMessages[i]
+            if (message.threadId == threadId) {
+                // Mark this message as having version history
+                currentMessages[i] = message.copy(hasVersionHistory = true)
+            }
+        }
+        _messages.value = currentMessages
+    }
+
+    /**
+     * Navigate to the previous version of a message thread
+     */
+    fun navigateToPreviousVersion(threadId: String): Boolean {
+        val thread = messageThreads[threadId] ?: return false
+        
+        if (!thread.hasPreviousVersion()) {
+            return false
+        }
+        
+        val previousVersion = thread.moveToPreviousVersion() ?: return false
+        updateVisibleMessages(thread, previousVersion)
+        return true
+    }
+    
+    /**
+     * Navigate to the next version of a message thread
+     */
+    fun navigateToNextVersion(threadId: String): Boolean {
+        val thread = messageThreads[threadId] ?: return false
+        
+        if (!thread.hasNextVersion()) {
+            return false
+        }
+        
+        val nextVersion = thread.moveToNextVersion() ?: return false
+        updateVisibleMessages(thread, nextVersion)
+        return true
+    }
+    
+    /**
+     * Updates visible messages to display the specified version
+     */
+    private fun updateVisibleMessages(thread: MessageThread, version: MessageVersion) {
+        val currentMessages = _messages.value?.toMutableList() ?: return
+        
+        // Find all messages belonging to this thread
+        val threadIndices = currentMessages.mapIndexedNotNull { index, message ->
+            if (message.threadId == thread.threadId) index else null
+        }
+        
+        if (threadIndices.isEmpty()) return
+        
+        // There should be at least one user message, and possibly one bot response
+        val userMessageIndex = threadIndices.first()
+        val botResponseIndex = if (threadIndices.size > 1) threadIndices[1] else -1
+        
+        // Update user message - keep hasVersionHistory flag true
+        currentMessages[userMessageIndex] = version.userMessage.copy(
+            isCurrentVersion = true,
+            versionNumber = thread.currentVersionIndex,
+            hasVersionHistory = true  // Always true since we're navigating versions
+        )
+        val botMessageVersion = version.botResponse
+        // Update bot response if it exists
+        if (botResponseIndex != -1 && botMessageVersion != null) {
+            currentMessages[botResponseIndex] = botMessageVersion.copy(
+                isCurrentVersion = true,
+                versionNumber = thread.currentVersionIndex,
+                hasVersionHistory = true  // Always true since we're navigating versions
+            )
+        } else if (botResponseIndex != -1 && botMessageVersion == null) {
+            // Remove bot response if there isn't one for this version
+            currentMessages.removeAt(botResponseIndex)
+        } else if (botResponseIndex == -1 && botMessageVersion != null) {
+            // Add bot response if there is one for this version but not in the visible list
+            currentMessages.add(userMessageIndex + 1, botMessageVersion.copy(
+                isCurrentVersion = true,
+                versionNumber = thread.currentVersionIndex,
+                hasVersionHistory = true  // Always true since we're navigating versions
+            ))
+        }
+        
+        _messages.value = currentMessages
+    }
+    
+    fun getMessageThreadInfo(threadId: String): MessageThread? {
+        return messageThreads[threadId]
+    }
+}

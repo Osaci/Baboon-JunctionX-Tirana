@@ -1,0 +1,234 @@
+package com.example.lilotest.ui.chat
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.lilotest.data.model.Message
+import com.example.lilotest.data.model.MessageType
+import com.example.lilotest.data.remote.MessageRepository
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.regex.Pattern
+import android.util.Log
+
+class ChatViewModel : ViewModel() {
+
+    private val TAG = "ChatViewModel"
+    private val repository = MessageRepository()
+
+    private val _messages = MutableLiveData<List<Message>>(emptyList())
+    val messages: LiveData<List<Message>> = _messages
+
+    fun sendMessage(content: String) {
+        val currentMessages = _messages.value?.toMutableList() ?: mutableListOf()
+
+        // Add user message to the list
+        val userMessage = Message(
+            id = System.currentTimeMillis().toString(),
+            content = content,
+            type = MessageType.USER,
+            timestamp = Date()
+        )
+        currentMessages.add(userMessage)
+        _messages.value = currentMessages
+
+        // Send message to the server
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending message: $content")
+                val response = repository.sendMessage(content)
+                Log.d(TAG, "Received response: $response")
+
+                // Process text with special prefixes
+                processAndAddResponse(response)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending message", e)
+
+                // Handle error 
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date()
+                )
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                updatedMessages.add(errorMessage)
+                _messages.value = updatedMessages
+            }
+        }
+    }
+    private fun processAndAddResponse(responseText: String) {
+        val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+
+        // Check for image url prefix
+        if (responseText.contains("!IMAGEURL!")) {
+            Log.d(TAG, "Found image URL prefix")
+            val parts = responseText.split("!IMAGEURL!")
+            val contentText = parts[0].trim()
+            val imageUrl = parts[1].trim()
+
+            Log.d(TAG, "Image URL: $imageUrl")
+
+            // Add response to the messages list
+            val responseMessage = Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageUrl = imageUrl
+            )
+
+            updatedMessages.add(responseMessage)  
+        }
+        // Check for image data prefix
+        else if (responseText.contains("!IMAGEDATA!")) {
+            Log.d(TAG, "Found image data prefix")
+            val parts = responseText.split("!IMAGEDATA!")
+            val contentText = parts[0].trim()
+            val imageData = parts[1].trim()
+
+            Log.d(TAG, "Image data length: ${imageData.length}")
+        
+            val responseMessage = Message(
+                id = System.currentTimeMillis().toString(),
+                content = contentText,
+                type = MessageType.BOT,
+                timestamp = Date(),
+                containsImage = true,
+                imageData = imageData
+            )
+            updatedMessages.add(responseMessage)
+        }
+        //Regular text response
+        else {
+            val responseMessage = Message(
+                id = System.currentTimeMillis().toString(),
+                content = responseText,
+                type = MessageType.BOT,        
+                timestamp = Date()
+            )
+            updatedMessages.add(responseMessage)
+        }
+        _messages.value = updatedMessages
+    }
+    fun editMessage(messageId: String, newContent: String) {
+        val currentMessages = _messages.value?.toMutableList() ?: return
+        
+        // Find the positions of the user message to edit and its corresponding bot response
+        var userMessagePosition = -1
+        var botResponsePosition = -1
+        
+        for (i in currentMessages.indices) {
+            if (currentMessages[i].id == messageId) {
+                userMessagePosition = i
+                // The bot response should be the next message
+                if (i + 1 < currentMessages.size && currentMessages[i + 1].type == MessageType.BOT) {
+                    botResponsePosition = i + 1
+                }
+                break
+            }
+        }
+        
+        if (userMessagePosition == -1) return
+        
+        // Update the user message
+        val updatedUserMessage = currentMessages[userMessagePosition].copy(
+            content = newContent,
+            timestamp = Date() // Update timestamp to show it was edited
+        )
+        currentMessages[userMessagePosition] = updatedUserMessage
+        
+        // Update the UI first
+        _messages.value = currentMessages
+        
+        // Then send the edited message to get a new response
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending edited message: $newContent")
+                val response = repository.sendMessage(newContent)
+                Log.d(TAG, "Received response for edited message: $response")
+                
+                // Get the updated messages list (might have changed during API call)
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                
+                // If we found a bot response to replace
+                if (botResponsePosition != -1 && botResponsePosition < updatedMessages.size) {
+                    // Process and update the bot response
+                    if (response.contains("!IMAGEURL!") || response.contains("!IMAGEDATA!")) {
+                        // Handle special image responses similarly to processAndAddResponse
+                        // but replace the existing bot message instead of adding a new one
+                        if (response.contains("!IMAGEURL!")) {
+                            val parts = response.split("!IMAGEURL!")
+                            val contentText = parts[0].trim()
+                            val imageUrl = parts[1].trim()
+                            
+                            val updatedBotMessage = updatedMessages[botResponsePosition].copy(
+                                content = contentText,
+                                timestamp = Date(),
+                                containsImage = true,
+                                imageUrl = imageUrl,
+                                imageData = null
+                            )
+                            updatedMessages[botResponsePosition] = updatedBotMessage
+                        } 
+                        else if (response.contains("!IMAGEDATA!")) {
+                            val parts = response.split("!IMAGEDATA!")
+                            val contentText = parts[0].trim()
+                            val imageData = parts[1].trim()
+                            
+                            val updatedBotMessage = updatedMessages[botResponsePosition].copy(
+                                content = contentText,
+                                timestamp = Date(),
+                                containsImage = true,
+                                imageUrl = null,
+                                imageData = imageData
+                            )
+                            updatedMessages[botResponsePosition] = updatedBotMessage
+                        }
+                    } 
+                    else {
+                        // Regular text response
+                        val updatedBotMessage = updatedMessages[botResponsePosition].copy(
+                            content = response,
+                            timestamp = Date()
+                        )
+                        updatedMessages[botResponsePosition] = updatedBotMessage
+                    }
+                } 
+                else {
+                    // If we couldn't find a bot response to replace, add a new one
+                    processAndAddResponse(response)
+                    return@launch
+                }
+                
+                // Update the messages list
+                _messages.value = updatedMessages
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending edited message", e)
+                
+                // Handle error by showing an error message
+                val errorMessage = Message(
+                    id = System.currentTimeMillis().toString(),
+                    content = "Error: ${e.message}",
+                    type = MessageType.ERROR,
+                    timestamp = Date()
+                )
+                
+                val updatedMessages = _messages.value?.toMutableList() ?: mutableListOf()
+                
+                // If we found a bot response position, replace it with the error
+                if (botResponsePosition != -1 && botResponsePosition < updatedMessages.size) {
+                    updatedMessages[botResponsePosition] = errorMessage
+                } else {
+                    // Otherwise just add the error message
+                    updatedMessages.add(errorMessage)
+                }
+                
+                _messages.value = updatedMessages
+            }
+        }
+    }
+} 
